@@ -59,17 +59,17 @@ module Rx(Time:Mirage_time.S)(ACK: Ack.M) = struct
 
   (* Individual received TCP segment
      TODO: this will change when IP fragments work *)
-  type segment = { header: Tcp_packet.t; payload: Cstruct.t }
+  type segment = { header: Tcp_packet.t; payload: Bytes.t }
 
   let pp_segment fmt {header; payload} =
     Format.fprintf fmt
       "RX seg seq=%a acknum=%a ack=%b rst=%b syn=%b fin=%b win=%d len=%d"
       Sequence.pp header.sequence Sequence.pp header.ack_number
       header.ack header.rst header.syn header.fin
-      header.window (Cstruct.length payload)
+      header.window (Bytes.length payload)
 
   let len seg =
-    Sequence.of_int ((Cstruct.length seg.payload) +
+    Sequence.of_int ((Bytes.length seg.payload) +
     (if seg.header.fin then 1 else 0) +
     (if seg.header.syn then 1 else 0))
 
@@ -81,7 +81,7 @@ module Rx(Time:Mirage_time.S)(ACK: Ack.M) = struct
 
   type t = {
     mutable segs: S.t;
-    rx_data: (Cstruct.t list option * Sequence.t option) Lwt_mvar.t; (* User receive channel *)
+    rx_data: (Bytes.t list option * Sequence.t option) Lwt_mvar.t; (* User receive channel *)
     ack: ACK.t;
     tx_ack: (Sequence.t * int) Lwt_mvar.t; (* Acks of our transmitted segs *)
     wnd: Window.t;
@@ -190,7 +190,7 @@ module Rx(Time:Mirage_time.S)(ACK: Ack.M) = struct
       let urx_inform =
         (* TODO: deal with overlapping fragments *)
         let elems_r, winadv = S.fold (fun seg (acc_l, acc_w) ->
-            (if Cstruct.length seg.payload > 0 then seg.payload :: acc_l else acc_l),
+            (if Bytes.length seg.payload > 0 then seg.payload :: acc_l else acc_l),
             (Sequence.add (len seg) acc_w)
           ) ready ([], Sequence.zero) in
         let elems = List.rev elems_r in
@@ -243,10 +243,10 @@ module Tx (Time:Mirage_time.S) (Clock:Mirage_clock.MCLOCK) = struct
 
   type ('a, 'b) xmit =
     flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
-    seq:Sequence.t -> Cstruct.t -> ('a, 'b) result Lwt.t
+    seq:Sequence.t -> Bytes.t -> ('a, 'b) result Lwt.t
 
   type seg = {
-    data: Cstruct.t;
+    data: Bytes.t;
     flags: tx_flags;
     seq: Sequence.t;
   }
@@ -257,7 +257,7 @@ module Tx (Time:Mirage_time.S) (Clock:Mirage_clock.MCLOCK) = struct
     ((match seg.flags with
      | No_flags | Psh | Rst -> 0
      | Syn | Fin -> 1) +
-    (Cstruct.length seg.data))
+    (Bytes.length seg.data))
 
   (* Queue of pre-transmission segments *)
   type ('a, 'b) q = {

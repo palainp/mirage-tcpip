@@ -5,12 +5,12 @@ type t = {
   rst : bool;
   syn : bool;
   fin : bool;
-  window : Cstruct.uint16;
+  window : int;
   options : Options.t list;
   sequence : Sequence.t;
   ack_number : Sequence.t;
-  src_port : Cstruct.uint16;
-  dst_port : Cstruct.uint16;
+  src_port : int;
+  dst_port : int;
 }
 
 val pp : Format.formatter -> t -> unit
@@ -19,7 +19,7 @@ val equal : t -> t -> bool
 module Unmarshal : sig
   type error = string
 
-  val of_cstruct : Cstruct.t -> (t * Cstruct.t, error) result
+  val of_cstruct : Bytes.t -> (t * Bytes.t, error) result
 end
 
 module Marshal : sig
@@ -33,10 +33,10 @@ module Marshal : sig
       Returns either the number of bytes written into the buffer on success; if
       the buffer supplied is too small to write the entire header, an error is
       returned. *)
-  val into_cstruct :
-    pseudoheader:Cstruct.t ->
-    payload:Cstruct.t      ->
-    t -> Cstruct.t ->
+  val into_bytes :
+    pseudoheader:Bytes.t ->
+    payload:Bytes.t      ->
+    t -> Bytes.t ->
     (int, error) result
 
   (** [make_cstruct ~pseudoheader ~payload t] allocates, fills, and and returns a buffer
@@ -46,5 +46,5 @@ module Marshal : sig
       A variable amount of memory (at least 20 bytes, and at most 60) will be allocated, but
       [] is not represented in the output.  The checksum will be properly
       set to reflect the pseudoheader, header, options, and payload. *)
-  val make_cstruct : pseudoheader:Cstruct.t -> payload:Cstruct.t -> t -> Cstruct.t
+  val make_bytes : pseudoheader:Bytes.t -> payload:Bytes.t -> t -> Bytes.t
 end

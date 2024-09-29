@@ -21,15 +21,15 @@ module type S = sig
   val pp_prefix : prefix Fmt.t
   type t
   val disconnect : t -> unit Lwt.t
-  type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
+  type callback = src:ipaddr -> dst:ipaddr -> Bytes.t -> unit Lwt.t
   val input:
     t ->
     tcp:callback -> udp:callback -> default:(proto:int -> callback) ->
-    Cstruct.t -> unit Lwt.t
+    Bytes.t -> unit Lwt.t
   val write: t -> ?fragment:bool -> ?ttl:int ->
-    ?src:ipaddr -> ipaddr -> proto -> ?size:int -> (Cstruct.t -> int) ->
-    Cstruct.t list -> (unit, error) result Lwt.t
-  val pseudoheader : t -> ?src:ipaddr -> ipaddr -> proto -> int -> Cstruct.t
+    ?src:ipaddr -> ipaddr -> proto -> ?size:int -> (Bytes.t -> int) ->
+    Bytes.t list -> (unit, error) result Lwt.t
+  val pseudoheader : t -> ?src:ipaddr -> ipaddr -> proto -> int -> Bytes.t
   val src: t -> dst:ipaddr -> ipaddr
   val get_ip: t -> ipaddr list
   [@@ocaml.deprecated "this function will be removed soon, use [configured_ips] instead."]

@@ -1,11 +1,11 @@
 type t = {
   src     : Ipaddr.V4.t;
   dst     : Ipaddr.V4.t;
-  id      : Cstruct.uint16;
-  off     : Cstruct.uint16;
-  ttl     : Cstruct.uint8;
-  proto   : Cstruct.uint8;
-  options : Cstruct.t;
+  id      : int;
+  off     : int;
+  ttl     : int;
+  proto   : int;
+  options : Bytes.t;
 }
 
 type protocol = [
@@ -15,7 +15,7 @@ type protocol = [
 
 let pp fmt t =
   Format.fprintf fmt "IPv4 packet %a -> %a: id %04x, off %d proto %d, ttl %d, options %a"
-    Ipaddr.V4.pp t.src Ipaddr.V4.pp t.dst t.id t.off t.proto t.ttl Cstruct.hexdump_pp t.options
+    Ipaddr.V4.pp t.src Ipaddr.V4.pp t.dst t.id t.off t.proto t.ttl Ohex.pp (Bytes.to_string t.options)
 
 let equal {src; dst; id; off; ttl; proto; options} q =
   src = q.src &&
@@ -24,7 +24,7 @@ let equal {src; dst; id; off; ttl; proto; options} q =
   off = q.off &&
   ttl = q.ttl &&
   proto = q.proto &&
-  Cstruct.equal options q.options
+  Bytes.equal options q.options
 
 module Marshal = struct
   open Ipv4_wire
@@ -39,13 +39,13 @@ module Marshal = struct
   let pseudoheader ~src ~dst ~proto len =
     (* should we do sth about id or off (assert false?) *)
     let proto = protocol_to_int proto in
-    let ph = Cstruct.create 12 in
+    let ph = Bytes.create 12 in
     let numify = Ipaddr.V4.to_int32 in
-    Cstruct.BE.set_uint32 ph 0 (numify src);
-    Cstruct.BE.set_uint32 ph 4 (numify dst);
-    Cstruct.set_uint8 ph 8 0;
-    Cstruct.set_uint8 ph 9 proto;
-    Cstruct.BE.set_uint16 ph 10 len;
+    Bytes.set_uint32_be ph 0 (numify src);
+    Bytes.set_uint32_be ph 4 (numify dst);
+    Bytes.set_uint8 ph 8 0;
+    Bytes.set_uint8 ph 9 proto;
+    Bytes.set_uint16_be ph 10 len;
     ph
 
   let unsafe_fill ~payload_len t buf =
@@ -53,7 +53,7 @@ module Marshal = struct
       | 0 -> n
       | k -> (4 - k) + n
     in
-    let options_len = nearest_4 @@ Cstruct.length t.options in
+    let options_len = nearest_4 @@ Bytes.length t.options in
     set_hlen_version buf ((4 lsl 4) + 5 + (options_len / 4));
     set_id buf t.id;
     set_off buf t.off;
@@ -61,26 +61,26 @@ module Marshal = struct
     set_proto buf t.proto;
     set_src buf t.src;
     set_dst buf t.dst;
-    Cstruct.blit t.options 0 buf sizeof_ipv4 (Cstruct.length t.options);
+    Bytes.blit t.options 0 buf sizeof_ipv4 (Bytes.length t.options);
     set_len buf (sizeof_ipv4 + options_len + payload_len);
-    let checksum = Tcpip_checksum.ones_complement @@ Cstruct.sub buf 0 (20 + options_len) in
+    let checksum = Tcpip_checksum.ones_complement @@ Bytes.sub buf 0 (20 + options_len) in
     set_checksum buf checksum
 
 
-  let into_cstruct ~payload_len t buf =
-    if Cstruct.length buf < (sizeof_ipv4 + Cstruct.length t.options) then
+  let into_bytes ~payload_len t buf =
+    if Bytes.length buf < (sizeof_ipv4 + Bytes.length t.options) then
       Error "Not enough space for IPv4 header"
     else
       Ok (unsafe_fill ~payload_len t buf)
 
-  let make_cstruct ~payload_len t =
+  let make_bytes ~payload_len t =
     let nearest_4 n = match n mod 4 with
       | 0 -> n
       | k -> (4 - k) + n
     in
-    let options_len = nearest_4 @@ Cstruct.length t.options in
-    let buf = Cstruct.create (sizeof_ipv4 + options_len) in
-    Cstruct.memset buf 0x00; (* should be removable in the future *)
+    let options_len = nearest_4 @@ Bytes.length t.options in
+    let buf = Bytes.make (sizeof_ipv4 + options_len) '\000' in
+    (* The initialisation with '\000' should be removable in the future *)
     unsafe_fill ~payload_len t buf;
     buf
 end
@@ -95,7 +95,7 @@ module Unmarshal = struct
 
   let ( let* ) = Result.bind
 
-  let header_of_cstruct buf =
+  let header_of_bytes buf =
     let open Ipv4_wire in
     let check_version buf =
       let version n = (n land 0xf0) in
@@ -104,7 +104,7 @@ module Unmarshal = struct
       | n -> Error (Printf.sprintf "IPv4 presented with a packet that claims a different IP version: %x" n)
     in
     let size_check buf =
-      if (Cstruct.length buf < sizeof_ipv4) then Error "buffer sent to IPv4 parser had size < 20"
+      if (Bytes.length buf < sizeof_ipv4) then Error "buffer sent to IPv4 parser had size < 20"
       else Ok ()
     in
     let get_header_length buf =
@@ -120,8 +120,8 @@ module Unmarshal = struct
                  len hlen)
       else if hlen < sizeof_ipv4 then
         Error (Printf.sprintf "IPv4 header claimed to have size < 20: %d" hlen)
-      else if Cstruct.length buf < hlen then
-        Error (Printf.sprintf "IPv4 packet w/length %d claimed to have header of size %d" (Cstruct.length buf) hlen)
+      else if Bytes.length buf < hlen then
+        Error (Printf.sprintf "IPv4 packet w/length %d claimed to have header of size %d" (Bytes.length buf) hlen)
       else Ok hlen
     in
     let parse buf options_end =
@@ -133,8 +133,8 @@ module Unmarshal = struct
       and proto = get_proto buf
       in
       let options =
-        if options_end > sizeof_ipv4 then (Cstruct.sub buf sizeof_ipv4 (options_end - sizeof_ipv4))
-        else (Cstruct.create 0)
+        if options_end > sizeof_ipv4 then (Bytes.sub buf sizeof_ipv4 (options_end - sizeof_ipv4))
+        else (Bytes.empty)
       in
        Ok ({src; dst; id; off; ttl; proto; options;}, options_end)
     in
@@ -143,18 +143,18 @@ module Unmarshal = struct
     let* hl = get_header_length buf in
     parse buf hl
 
-  let of_cstruct buf =
+  let of_bytes buf =
     let parse buf options_end =
       let payload_len = Ipv4_wire.get_len buf - options_end in
-      let payload_available = Cstruct.length buf - options_end in
+      let payload_available = Bytes.length buf - options_end in
       if payload_available < payload_len then (
         Error (Printf.sprintf "Payload buffer (%d bytes) too small to contain payload (of size %d from header)" payload_available payload_len)
       ) else (
-        let payload = Cstruct.sub buf options_end payload_len in
+        let payload = Bytes.sub buf options_end payload_len in
         Ok payload
       )
     in
-    let* header, options_end = header_of_cstruct buf in
+    let* header, options_end = header_of_bytes buf in
     let* payload = parse buf options_end in
     Ok (header, payload)
 
@@ -170,11 +170,11 @@ module Unmarshal = struct
     in
     match proto with
     | `TCP -> (* checksum isn't optional in tcp, but pkt must be long enough *)
-      check ipv4_header ~proto (Cstruct.length transport_packet)
+      check ipv4_header ~proto (Bytes.length transport_packet)
     | `UDP ->
       match Udp_wire.get_checksum transport_packet with
       | n when (=) 0 @@ compare n 0x0000 -> true (* no checksum supplied, so the check trivially passes *)
       | _ ->
-        check ipv4_header ~proto (Cstruct.length transport_packet)
+        check ipv4_header ~proto (Bytes.length transport_packet)
 
 end

@@ -8,10 +8,10 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 (* Construct a payload buffer of a given size *)
 let make_payload ~size () =
-  let buf = Cstruct.create size in
+  let buf = Bytes.create size in
   let pattern = "plz reply i'm so lonely" in
-  for i = 0 to Cstruct.length buf - 1 do
-    Cstruct.set_char buf i pattern.[i mod (String.length pattern)]
+  for i = 0 to Bytes.length buf - 1 do
+    Bytes.set_char buf i pattern.[i mod (String.length pattern)]
   done;
   buf
 
@@ -32,8 +32,8 @@ let send_echo_requests ~stack ~payload ~dst () =
     let id_no = 0x1234 in
     let req = Icmpv4_packet.({code = 0x00; ty = Icmpv4_wire.Echo_request;
                               subheader = Id_and_seq (id_no, seq_no)}) in
-    let header = Icmpv4_packet.Marshal.make_cstruct req ~payload in
-    let echo_request = Cstruct.concat [ header; payload ] in
+    let header = Icmpv4_packet.Marshal.make_bytes req ~payload in
+    let echo_request = Bytes.concat Bytes.empty [ header; payload ] in
     Log.debug (fun f -> f "Sending ECHO_REQUEST id_no=%d seq_no=%d to %s" id_no seq_no (Ipaddr.V4.to_string dst));
     Icmpv4_socket.write stack ~dst echo_request
     >>= function
@@ -53,13 +53,14 @@ let send_echo_requests ~stack ~payload ~dst () =
 let make_receiver ~count ~payload () =
   let finished_t, finished_u = Lwt.task () in
   let callback buf =
-    Log.debug (fun f -> f "Received IP %a" Cstruct.hexdump_pp buf);
-    match Ipv4_packet.Unmarshal.of_cstruct buf with
+    let str = Bytes.to_string buf in
+    Log.debug (fun f -> f "Received IP %a" Ohex.pp str);
+    match Ipv4_packet.Unmarshal.of_bytes buf with
     | Error msg ->
       Log.err (fun f -> f "Error unmarshalling IP datagram: %s" msg);
       Lwt.return_unit
     | Ok (ip, ip_payload) ->
-      match Icmpv4_packet.Unmarshal.of_cstruct ip_payload with
+      match Icmpv4_packet.Unmarshal.of_bytes ip_payload with
       | Error msg ->
         Log.err (fun f -> f "Error unmarshalling ICMP message: %s" msg);
         Lwt.return_unit
@@ -72,7 +73,7 @@ let make_receiver ~count ~payload () =
           | Id_and_seq (_id, seq) ->
             if reply.code <> 0
             then Log.err (fun f -> f "received an ICMP ECHO_REQUEST with reply.code=%d" reply.code);
-            if not(Cstruct.equal payload received_payload)
+            if not(Bytes.equal payload received_payload)
             then Log.err (fun f -> f "received an ICMP ECHO_REQUEST with an unexpected payload");
             if not(Hashtbl.mem seq_no_to_send_time seq)
             then Log.err (fun f -> f "received an ICMP ECHO_REQUEST with an unexpected sequence number")
@@ -81,7 +82,7 @@ let make_receiver ~count ~payload () =
               Hashtbl.remove seq_no_to_send_time seq;
               let ms = secs *. 1000.0 in
               Printf.printf "%d bytes from %s: icmp_seq=%d ttl=%d time=%f ms\n%!"
-                (Cstruct.length payload) (Ipaddr.V4.to_string ip.Ipv4_packet.src) seq ip.Ipv4_packet.ttl ms;
+                (Bytes.length payload) (Ipaddr.V4.to_string ip.Ipv4_packet.src) seq ip.Ipv4_packet.ttl ms;
               incr nr_received;
               min_ms := min !min_ms ms;
               max_ms := max !max_ms ms;

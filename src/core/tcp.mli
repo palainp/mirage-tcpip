@@ -57,7 +57,7 @@ module type S = sig
   (** Get the source IP address and source port that a flow is currently
       connected to. *)
 
-  val write_nodelay: flow -> Cstruct.t -> (unit, write_error) result Lwt.t
+  val write_nodelay: flow -> Bytes.t -> (unit, write_error) result Lwt.t
   (** [write_nodelay flow buffer] writes the contents of [buffer]
       to the flow. The thread blocks until all data has been successfully
       transmitted to the remote endpoint.
@@ -65,7 +65,7 @@ module type S = sig
       Note that this API will change in a future revision to be a
       per-flow attribute instead of a separately exposed function. *)
 
-  val writev_nodelay: flow -> Cstruct.t list -> (unit, write_error) result Lwt.t
+  val writev_nodelay: flow -> Bytes.t list -> (unit, write_error) result Lwt.t
   (** [writev_nodelay flow buffers] writes the contents of [buffers]
       to the flow. The thread blocks until all data has been successfully
       transmitted to the remote endpoint.
@@ -93,7 +93,7 @@ module type S = sig
   val unlisten : t -> port:int -> unit
   (** [unlisten t ~port] stops any listener on [port]. *)
 
-  val input: t -> src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
+  val input: t -> src:ipaddr -> dst:ipaddr -> Bytes.t -> unit Lwt.t
   (** [input t] returns an input function continuation to be
       passed to the underlying {!IP} layer. *)
 end

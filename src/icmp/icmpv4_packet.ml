@@ -2,14 +2,14 @@ open Icmpv4_wire
 
 (* second 4 bytes of the message have varying interpretations *)
 type subheader =
-  | Id_and_seq of Cstruct.uint16 * Cstruct.uint16
-  | Next_hop_mtu of Cstruct.uint16
-  | Pointer of Cstruct.uint8
+  | Id_and_seq of int * int
+  | Next_hop_mtu of int
+  | Pointer of int
   | Address of Ipaddr.V4.t
   | Unused
 
 type t = {
-  code : Cstruct.uint8;
+  code : int;
   ty : ty;
   subheader : subheader;
 }
@@ -45,22 +45,22 @@ module Unmarshal = struct
 
   type error = string
 
-  let subheader_of_cstruct ty buf =
-    let open Cstruct.BE in
+  let subheader_of_bytes ty buf =
     match ty with
     | Echo_request | Echo_reply
     | Timestamp_request | Timestamp_reply
     | Information_request | Information_reply ->
-      Id_and_seq (get_uint16 buf 0, get_uint16 buf 2)
-    | Destination_unreachable -> Next_hop_mtu (get_uint16 buf 2)
+      Id_and_seq (Bytes.get_uint16_be buf 0, Bytes.get_uint16_be buf 2)
+    | Destination_unreachable -> Next_hop_mtu (Bytes.get_uint16_be buf 2)
     | Time_exceeded
     | Source_quench -> Unused
-    | Redirect -> Address (Ipaddr.V4.of_int32 (get_uint32 buf 0))
-    | Parameter_problem -> Pointer (Cstruct.get_uint8 buf 0)
+    | Redirect -> Address (Ipaddr.V4.of_int32 (Bytes.get_uint32_be buf 0))
+    | Parameter_problem -> Pointer (Bytes.get_uint8 buf 0)
 
-  let of_cstruct buf =
+  let of_bytes buf =
+    let len = Bytes.length buf in
     let check_len () =
-      if Cstruct.length buf < sizeof_icmpv4 then
+      if len < sizeof_icmpv4 then
         Error "packet too short for ICMPv4 header"
       else Ok () in
     let check_ty () =
@@ -72,8 +72,10 @@ module Unmarshal = struct
     let* () = check_len () in
     let* ty = check_ty () in
     let code = get_code buf in
-    let subheader = subheader_of_cstruct ty (Cstruct.shift buf 4) in
-    let payload = Cstruct.shift buf sizeof_icmpv4 in
+    let buf = Bytes.sub buf 4 (len-4) in
+    let len = len-4 in
+    let subheader = subheader_of_bytes ty buf in
+    let payload = Bytes.sub buf sizeof_icmpv4 (len-sizeof_icmpv4) in
     Ok ({ code; ty; subheader}, payload)
 end
 
@@ -81,35 +83,36 @@ module Marshal = struct
 
   type error = string
 
-  let subheader_into_cstruct ~buf sh =
-    let open Cstruct.BE in
+  let subheader_into_bytes ~buf sh =
     match sh with
-    | Id_and_seq (id, seq) -> set_uint16 buf 0 id; set_uint16 buf 2 seq
-    | Next_hop_mtu mtu -> set_uint16 buf 0 0; set_uint16 buf 2 mtu
-    | Pointer byte -> set_uint32 buf 0 Int32.zero; Cstruct.set_uint8 buf 0 byte;
-    | Address addr -> set_uint32 buf 0 (Ipaddr.V4.to_int32 addr)
+    | Id_and_seq (id, seq) -> Bytes.set_uint16_be buf 0 id; Bytes.set_uint16_be buf 2 seq
+    | Next_hop_mtu mtu -> Bytes.set_uint16_be buf 0 0; Bytes.set_uint16_be buf 2 mtu
+    | Pointer byte -> Bytes.set_uint32_be buf 0 Int32.zero; Bytes.set_uint8 buf 0 byte;
+    | Address addr -> Bytes.set_uint32_be buf 0 (Ipaddr.V4.to_int32 addr)
     | Unused -> set_uint32 buf 0 Int32.zero
 
   let unsafe_fill {ty; code; subheader} buf ~payload =
     set_ty buf (ty_to_int ty);
     set_code buf code;
     set_checksum buf 0x0000;
-    subheader_into_cstruct ~buf:(Cstruct.shift buf 4) subheader;
-    let packets = [(Cstruct.sub buf 0 sizeof_icmpv4); payload] in
+    let len = Bytes.length buf in
+    let buf = Bytes.sub buf 4 (len-4) in
+    subheader_into_cstruct ~buf:buf subheader;
+    let packets = [(Bytes.sub buf 0 sizeof_icmpv4); payload] in
     set_checksum buf (Tcpip_checksum.ones_complement_list packets)
 
   let check_len buf =
-    if Cstruct.length buf < sizeof_icmpv4 then
+    if Bytes.length buf < sizeof_icmpv4 then
       Error "Not enough space for ICMP header"
     else Ok ()
 
-  let into_cstruct t buf ~payload =
+  let into_bytes t buf ~payload =
     let* () = check_len buf in
     unsafe_fill t buf ~payload;
     Ok ()
 
-  let make_cstruct t ~payload =
-    let buf = Cstruct.create sizeof_icmpv4 in
+  let make_bytes t ~payload =
+    let buf = Bytes.create sizeof_icmpv4 in
     unsafe_fill t buf ~payload;
     buf
 end

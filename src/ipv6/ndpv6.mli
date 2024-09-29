@@ -18,23 +18,23 @@ type ipaddr = Ipaddr.V6.t
 type prefix = Ipaddr.V6.Prefix.t
 type time   = int64
 
-val checksum : Cstruct.t -> Cstruct.t list -> int
+val checksum : Bytes.t -> Bytes.t list -> int
 
 type event =
-  [ `Tcp of ipaddr * ipaddr * Cstruct.t
-  | `Udp of ipaddr * ipaddr * Cstruct.t
-  | `Default of int * ipaddr * ipaddr * Cstruct.t ]
+  [ `Tcp of ipaddr * ipaddr * Bytes.t
+  | `Udp of ipaddr * ipaddr * Bytes.t
+  | `Default of int * ipaddr * ipaddr * Bytes.t ]
 
 type context
 
 val local : handle_ra:bool -> now:time -> random:(int -> string) -> Macaddr.t ->
-  context * (Macaddr.t * int * (Cstruct.t -> int)) list
+  context * (Macaddr.t * int * (Bytes.t -> int)) list
 (** [local ~handle_ra ~now ~random mac] is a pair [ctx, outs] where [ctx] is a local IPv6 context
     associated to the hardware address [mac].  [outs] is a list of ethif packets
     to be sent. *)
 
 val add_ip : now:time -> context -> prefix ->
-  context * (Macaddr.t * int * (Cstruct.t -> int)) list
+  context * (Macaddr.t * int * (Bytes.t -> int)) list
 (** [add_ip ~now ctx ip] is [ctx', outs] where [ctx'] is [ctx] updated with a
     new local ip and [outs] is a list of ethif packets to be sent. *)
 
@@ -48,22 +48,22 @@ val select_source : context -> ipaddr -> ipaddr
 (** [select_source ctx ip] returns the ip that should be put in the source field
     of a packet destined to [ip]. *)
 
-val handle : now:time -> random:(int -> string) -> context -> Cstruct.t ->
-  context * (Macaddr.t * int * (Cstruct.t -> int)) list * event list
+val handle : now:time -> random:(int -> string) -> context -> Bytes.t ->
+  context * (Macaddr.t * int * (Bytes.t -> int)) list * event list
 (** [handle ~now ~random ctx buf] handles an incoming ipv6 packet.  It returns
     [ctx', bufs, evs] where [ctx'] is the updated context, [bufs] is a list of
     packets to be sent and [evs] is a list of packets to be passed to the higher
     layers (udp, tcp, etc) for further processing. *)
 
 val send : now:time -> context -> ?src:ipaddr -> ipaddr -> Tcpip.Ip.proto ->
-  int -> (Cstruct.t -> Cstruct.t -> int) -> context * (Macaddr.t * int * (Cstruct.t -> int)) list
+  int -> (Bytes.t -> Bytes.t -> int) -> context * (Macaddr.t * int * (Bytes.t -> int)) list
 (** [send ~now ctx ?src dst proto size fillf] starts route resolution and assembles an
     ipv6 packet of [size] for sending with header and body passed to [fillf].
     It returns a pair [ctx', dst_size_fills] where [ctx'] is the updated
     context and [dst, size, fillf] is a list of packets to be sent, specified
     by destination, their size, and fill function. *)
 
-val tick : now:time -> context -> context * (Macaddr.t * int * (Cstruct.t -> int)) list
+val tick : now:time -> context -> context * (Macaddr.t * int * (Bytes.t -> int)) list
 (** [tick ~now ctx] should be called periodically (every 1s is good).  It
     returns [ctx', bufs] where [ctx'] is the updated context and [bufs] is a list of
     packets to be sent. *)

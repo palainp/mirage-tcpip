@@ -31,10 +31,10 @@ module type S = sig
 
   val dst: flow -> ipaddr * int
   val src: flow -> ipaddr * int
-  val write_nodelay: flow -> Cstruct.t -> (unit, write_error) result Lwt.t
-  val writev_nodelay: flow -> Cstruct.t list -> (unit, write_error) result Lwt.t
+  val write_nodelay: flow -> Bytes.t -> (unit, write_error) result Lwt.t
+  val writev_nodelay: flow -> Bytes.t list -> (unit, write_error) result Lwt.t
   val create_connection: ?keepalive:Keepalive.t -> t -> ipaddr * int -> (flow, error) result Lwt.t
   val listen : t -> port:int -> ?keepalive:Keepalive.t -> (flow -> unit Lwt.t) -> unit
   val unlisten : t -> port:int -> unit
-  val input: t -> src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
+  val input: t -> src:ipaddr -> dst:ipaddr -> Bytes.t -> unit Lwt.t
 end

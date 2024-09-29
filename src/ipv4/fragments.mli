@@ -46,7 +46,7 @@
    subsequent packets with the same quadruple. *)
 
 module V : sig
-  type t = int64 * Cstruct.t * bool * int * (int * Cstruct.t) list
+  type t = int64 * Bytes.t * bool * int * (int * Bytes.t) list
   (** The type of values in the fragment cache: a timestamp of the first
      received one, IP options (of the first fragment), whether or not the last
      fragment was received (the one with more fragments cleared), amount of
@@ -72,8 +72,8 @@ val max_duration : int64
 (** [max_duration] is the maximum delta between first and last received
     fragment, in nanoseconds. At the moment it is 10 seconds. *)
 
-val process : Cache.t -> int64 -> Ipv4_packet.t -> Cstruct.t -> Cache.t *
-   (Ipv4_packet.t * Cstruct.t) option (** [process t timestamp hdr payload] is
+val process : Cache.t -> int64 -> Ipv4_packet.t -> Bytes.t -> Cache.t *
+   (Ipv4_packet.t * Bytes.t) option (** [process t timestamp hdr payload] is
    [t'], a new cache, and maybe a fully reassembled IPv4 packet. If reassembly
    fails, e.g. too many fragments, delta between receive timestamp of first and
    last packet exceeds {!max_duration}, overlapping packets, these packets
@@ -83,7 +83,7 @@ val process : Cache.t -> int64 -> Ipv4_packet.t -> Cstruct.t -> Cache.t *
    header and payload is directly returned. Handles out-of-order fragments
    gracefully. *)
 
-val fragment : mtu:int -> Ipv4_packet.t -> Cstruct.t -> Cstruct.t list
+val fragment : mtu:int -> Ipv4_packet.t -> Bytes.t -> Bytes.t list
 (** [fragment ~mtu hdr payload] is called with the IPv4 header of the first
     fragment and the remaining payload (which did not fit into the first
     fragment). The [data_length = ((mtu - header_length hdr) / 8) * 8] is used

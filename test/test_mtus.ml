@@ -56,8 +56,7 @@ let connect () =
   Stack.Stack.TCP.close flow
 
 let big_server_response () =
-  let response = Cstruct.create 7000 in
-  Cstruct.memset response 255;
+  let response = Bytes.make 7000 '\255' in
   let backend = Backend.create () in
   get_stacks ~client_mtu:1500 ~server_mtu:9000 backend >>= fun (server, client) ->
   let f flow =
@@ -67,12 +66,11 @@ let big_server_response () =
   in
   Lwt.async (fun () -> start_server ~f server);
   start_client client >>= fun flow -> read_all flow [] >>= fun l ->
-  Alcotest.(check int) "received size matches sent size" (Cstruct.length response) (Cstruct.length (Cstruct.concat l));
+  Alcotest.(check int) "received size matches sent size" (Bytes.length response) (Bytes.length (Bytes.concat Bytes.empty l));
   Stack.Stack.TCP.close flow
 
 let big_client_request_chunked () =
-  let request = Cstruct.create 3750 in
-  Cstruct.memset request 255;
+  let request = Bytes.make 3750 '\255' in
   let backend = Backend.create () in
   get_stacks ~client_mtu:1500 ~server_mtu:9000 backend >>= fun (server, client) ->
   let f flow =
@@ -84,8 +82,7 @@ let big_client_request_chunked () =
   start_client client >>= f
 
 let big_server_response_not_chunked () =
-  let response = Cstruct.create 7000 in
-  Cstruct.memset response 255;
+  let response = Bytes.make 7000 '\255' in
   let backend = Backend.create () in
   get_stacks ~client_mtu:9000 ~server_mtu:9000 backend >>= fun (server, client) ->
   let f flow =
@@ -95,7 +92,7 @@ let big_server_response_not_chunked () =
   in
   Lwt.async (fun () -> start_server ~f server);
   start_client client >>= fun flow -> read_one flow >>= fun buf ->
-  Alcotest.(check int) "received size matches sent size" (Cstruct.length response) (Cstruct.length buf);
+  Alcotest.(check int) "received size matches sent size" (Bytes.length response) (Bytes.length buf);
   Stack.Stack.TCP.close flow
 
 let long_comms amt timeout () =

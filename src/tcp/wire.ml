@@ -58,17 +58,17 @@ module Make (Ip : Tcpip.Ip.S) = struct
       }
     in
     (* Make a TCP/IP header frame *)
-    let tcp_size = Tcp_wire.sizeof_tcp + Options.lenv options + Cstruct.length payload in
+    let tcp_size = Tcp_wire.sizeof_tcp + Options.lenv options + Bytes.length payload in
     let fill_buffer buf =
       let pseudoheader = Ip.pseudoheader ip ~src dst `TCP tcp_size in
-      match Tcp_packet.Marshal.into_cstruct header buf ~pseudoheader ~payload with
+      match Tcp_packet.Marshal.into_bytes header buf ~pseudoheader ~payload with
       | Error s ->
         Log.err (fun l -> l "Error writing TCP packet header: %s" s) ;
         0
         (* TODO: better to avoid this entirely, now we're sending empty IP
              frame and drop the payload.. oops *)
       | Ok l ->
-        Cstruct.blit payload 0 buf l (Cstruct.length payload) ;
+        Bytes.blit payload 0 buf l (Bytes.length payload) ;
         tcp_size
     in
     Ip.write ip ~fragment:false ~src dst `TCP ~size:tcp_size fill_buffer [] >|= function

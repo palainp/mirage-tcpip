@@ -17,7 +17,7 @@ let expect_error error name fn t =
 let ipv4_packet = Alcotest.testable Ipv4_packet.pp Ipv4_packet.equal
 let udp_packet = Alcotest.testable Udp_packet.pp Udp_packet.equal
 let tcp_packet = Alcotest.testable Tcp.Tcp_packet.pp Tcp.Tcp_packet.equal
-let cstruct = Alcotest.testable Cstruct.hexdump_pp Cstruct.equal
+let bytes = Alcotest.testable (fun x -> Ohex.pp (Bytes.to_string x) Bytes.equal
 
 let sequence =
   let eq x y = Tcp.Sequence.compare x y = 0 in

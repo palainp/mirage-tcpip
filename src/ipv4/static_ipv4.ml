@@ -29,7 +29,7 @@ module Make (R: Mirage_crypto_rng_mirage.S) (C: Mirage_clock.MCLOCK) (Ethernet: 
     | `Ethif e -> Ethernet.pp_error ppf e
 
   type ipaddr = Ipaddr.V4.t
-  type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
+  type callback = src:ipaddr -> dst:ipaddr -> Bytes.t -> unit Lwt.t
 
   let pp_ipaddr = Ipaddr.V4.pp
 
@@ -62,7 +62,7 @@ module Make (R: Mirage_crypto_rng_mirage.S) (C: Mirage_clock.MCLOCK) (Ethernet: 
       let mtu = Ethernet.mtu t.ethif in
       (* no options here, always 20 bytes! *)
       let hdr_len = Ipv4_wire.sizeof_ipv4 in
-      let needed_bytes = Cstruct.lenv bufs + hdr_len + size in
+      let needed_bytes = List.fold_left (fun acc x -> acc+(Bytes.length x)) 0 bufs + hdr_len + size in
       let multiple = needed_bytes > mtu in
       (* construct the header (will be reused across fragments) *)
       if not fragment && multiple then
@@ -79,7 +79,7 @@ module Make (R: Mirage_crypto_rng_mirage.S) (C: Mirage_clock.MCLOCK) (Ethernet: 
           let src = match src with None -> Ipaddr.V4.Prefix.address t.cidr | Some x -> x in
           let id = if multiple then Randomconv.int16 R.generate else 0 in
           Ipv4_packet.{
-            options = Cstruct.empty ;
+            options = Bytes.empty ;
             src ; dst ; ttl ; off ; id ;
             proto = Ipv4_packet.Marshal.protocol_to_int proto }
         in
@@ -93,23 +93,41 @@ module Make (R: Mirage_crypto_rng_mirage.S) (C: Mirage_clock.MCLOCK) (Ethernet: 
         in
         Log.debug (fun m -> m "ip write: mtu is %d, hdr_len is %d, size %d \
                                payload len %d, needed_bytes %d"
-                      mtu hdr_len size (Cstruct.lenv bufs) needed_bytes) ;
-        let leftover = ref Cstruct.empty in
+                      mtu hdr_len size (List.fold_left (fun acc x -> acc+(Bytes.length x)) 0 bufs) needed_bytes) ;
+        let leftover = ref Bytes.empty in
         (* first fragment *)
         let fill buf =
-          let payload_buf = Cstruct.shift buf hdr_len in
+          let len = Bytes.length buf in
+          let payload_buf = Bytes.sub buf hdr_len (len-hdr_len) in
           let header_len = headerf payload_buf in
           if header_len > size then begin
             Log.err (fun m -> m "headers returned length exceeding size") ;
             invalid_arg "headerf exceeds size"
           end ;
           (* need to copy the given payload *)
-          let len, rest =
-            Cstruct.fillv ~src:bufs ~dst:(Cstruct.shift payload_buf header_len)
+          let fillv ~src ~dst =
+            let rec aux dst n = function
+              | [] -> n, []
+              | hd::tl ->
+                  let avail = Bytes.length dst - n in
+                  let first = Bytes.length hd in
+                  if first <= avail then (
+                    Bytes.blit hd 0 dst n first;
+                    aux dst (n + first) tl
+                  ) else (
+                    Bytes.blit hd 0 dst n avail;
+                    let rest_hd = Bytes.sub hd avail (first-avail) in
+                    (n + avail, rest_hd :: tl)
+                  ) in
+            aux dst 0 src
           in
-          leftover := Cstruct.concat rest;
+          let l = Bytes.length payload_buf in (* payload_buf should be (Bytes.length buf)-hdr_len, see l101 *)
+          let len, rest =
+            fillv ~src:bufs ~dst:(Bytes.sub payload_buf header_len (l-header_len))
+          in
+          leftover := Bytes.concat Bytes.empty rest;
           let payload_len = header_len + len in
-          match Ipv4_packet.Marshal.into_cstruct ~payload_len hdr buf with
+          match Ipv4_packet.Marshal.into_bytes ~payload_len hdr buf with
           | Ok () -> payload_len + hdr_len
           | Error msg ->
             Log.err (fun m -> m "failure while assembling ip frame: %s" msg) ;
@@ -126,14 +144,14 @@ module Make (R: Mirage_crypto_rng_mirage.S) (C: Mirage_clock.MCLOCK) (Ethernet: 
                 match acc with
                 | Error e -> Lwt.return (Error e)
                 | Ok () ->
-                  let l = Cstruct.length p in
-                  writeout l (fun buf -> Cstruct.blit p 0 buf 0 l ; l))
+                  let l = Bytes.length p in
+                  writeout l (fun buf -> Bytes.blit p 0 buf 0 l ; l))
               (Ok ()) remaining
 
   let input t ~tcp ~udp ~default buf =
-    match Ipv4_packet.Unmarshal.of_cstruct buf with
+    match Ipv4_packet.Unmarshal.of_bytes buf with
     | Error s ->
-      Log.info (fun m -> m "error %s while parsing IPv4 frame %a" s Cstruct.hexdump_pp buf);
+      Log.info (fun m -> m "error %s while parsing IPv4 frame %a" s Ohex._pp (Bytes.to_string buf));
       Lwt.return_unit
     | Ok (packet, payload) ->
       let of_interest ip =
@@ -145,7 +163,7 @@ module Make (R: Mirage_crypto_rng_mirage.S) (C: Mirage_clock.MCLOCK) (Ethernet: 
         Log.debug (fun m -> m "dropping IP fragment not for us or broadcast %a"
                       Ipv4_packet.pp packet);
         Lwt.return_unit
-      end else if Cstruct.length payload = 0 then begin
+      end else if Bytes.length payload = 0 then begin
         Log.debug (fun m -> m "dropping zero length IPv4 frame %a" Ipv4_packet.pp packet) ;
         Lwt.return_unit
       end else

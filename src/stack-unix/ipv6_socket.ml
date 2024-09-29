@@ -18,7 +18,7 @@
 type t = unit
 type error = Tcpip.Ip.error
 type ipaddr = Ipaddr.V6.t
-type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
+type callback = src:ipaddr -> dst:ipaddr -> Bytes.t -> unit Lwt.t
 type prefix = Ipaddr.V6.Prefix.t
 
 let pp_error = Tcpip.Ip.pp_error

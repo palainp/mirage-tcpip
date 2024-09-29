@@ -3,6 +3,6 @@
  (public_name tcpip.tcp)
  (instrumentation
   (backend bisect_ppx))
- (libraries logs ipaddr cstruct lwt-dllist tcpip.checksum
+ (libraries logs ipaddr lwt-dllist tcpip.checksum
    tcpip duration randomconv fmt mirage-time mirage-clock
    mirage-crypto-rng-mirage mirage-flow metrics))

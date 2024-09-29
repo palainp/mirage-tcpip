@@ -39,12 +39,12 @@ let reply_id_from ~src ~dst data =
   WIRE.v ~dst_port:sport ~dst:src ~src_port:dport ~src:dst
 
 let ack_for data =
-  match Tcp_unmarshal.of_cstruct data with
+  match Tcp_unmarshal.of_bytes data with
   | Error s -> Alcotest.fail ("attempting to ack data: " ^ s)
   | Ok (packet, data) ->
     let open Tcp.Tcp_packet in
     let data_len =
-      Sequence.of_int ((Cstruct.length data) +
+      Sequence.of_int ((Bytes.length data) +
 		       (if packet.fin then 1 else 0) +
 		       (if packet.syn then 1 else 0)) in
     let sequence = packet.sequence in
@@ -67,7 +67,7 @@ let fail_result_not_expected fail = function
     fail "eof"
   | Ok (`Data data) ->
     Alcotest.fail (Format.asprintf "data not expected but received: %a"
-		     Cstruct.hexdump_pp data)
+		     Ohex.pp (Bytes.to_string data))
 
 
 

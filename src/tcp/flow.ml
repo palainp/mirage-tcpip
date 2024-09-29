@@ -101,7 +101,7 @@ struct
   module Tx = struct
 
     (* Output a TCP packet, and calculate some settings from a state descriptor *)
-    let xmit_pcb ip id ~flags ~wnd ~options ~seq (datav : Cstruct.t) =
+    let xmit_pcb ip id ~flags ~wnd ~options ~seq (datav : Bytes.t) =
       let window = Int32.to_int (Window.rx_wnd_unscaled wnd) in
       let rx_ack = Some (Window.rx_nxt wnd) in
       let syn = match flags with Segment.Syn -> true | _ -> false in
@@ -117,12 +117,12 @@ struct
       let options = [] in
       let seq = ack_number in
       let rx_ack = Some Sequence.(add sequence (of_int32 datalen)) in
-      WIRE.xmit ~ip id ~rst:true ~rx_ack ~seq ~window ~options (Cstruct.create 0)
+      WIRE.xmit ~ip id ~rst:true ~rx_ack ~seq ~window ~options Bytes.empty
 
     (* Output a SYN packet *)
     let send_syn { ip; _ } id ~tx_isn ~options ~window =
       WIRE.xmit ~ip id ~syn:true ~rx_ack:None ~seq:tx_isn ~window ~options
-        (Cstruct.create 0)
+        Bytes.empty
 
     (* Queue up an immediate close segment *)
     let shutdown ctx pcb =
@@ -132,7 +132,7 @@ struct
         UTX.wait_for_flushed pcb.utx >>= fun () ->
         (let { wnd; _ } = pcb in
          STATE.tick pcb.state (State.Send_fin (Window.tx_nxt wnd));
-         TXS.output ~flags:Segment.Fin pcb.txq Cstruct.empty
+         TXS.output ~flags:Segment.Fin pcb.txq Bytes.empty
         )
       | State.Closed | State.Syn_rcvd _ | State.Syn_sent _ when ctx = `Close ->
         State.on_close pcb.state;
@@ -157,7 +157,7 @@ struct
         let options = [] in
         let seq = Window.tx_nxt wnd in
         ACK.transmit ack ack_number >>= fun () ->
-        xmit_pcb t.ip pcb.id ~flags ~wnd ~options ~seq (Cstruct.create 0) >>=
+        xmit_pcb t.ip pcb.id ~flags ~wnd ~options ~seq Bytes.empty >>=
         fun _ -> (* TODO: what to do if sending failed.  Ignoring
                   * errors gives us the same behavior as if the packet
                   * was lost in transit *)
@@ -314,7 +314,7 @@ struct
     let seq = Sequence.pred @@ Window.tx_nxt wnd in
     (* if the sending fails this behaves like a packet drop which will cause
         the connection to be eventually closed after the probes are sent *)
-    Tx.xmit_pcb t.ip id ~flags ~wnd ~options ~seq (Cstruct.create 0) >>= fun _ ->
+    Tx.xmit_pcb t.ip id ~flags ~wnd ~options ~seq Bytes.empty >>= fun _ ->
     Lwt.return_unit
   | `Close ->
     Log.debug (fun f -> f "Keepalive timer expired, resetting connection %a" WIRE.pp id);
@@ -429,7 +429,7 @@ struct
     Stats.incr_listen ();
     (* Queue a SYN ACK for transmission *)
     let options = Options.MSS (Ip.mtu t.ip ~dst:(WIRE.dst id) - Tcp_wire.sizeof_tcp) :: opts in
-    TXS.output ~flags:Segment.Syn ~options pcb.txq (Cstruct.create 0) >>= fun () ->
+    TXS.output ~flags:Segment.Syn ~options pcb.txq Bytes.empty >>= fun () ->
     Lwt.return (pcb, th)
 
   let new_client_connection t params id ack_number keepalive =
@@ -444,7 +444,7 @@ struct
     Stats.incr_channel ();
     STATE.tick pcb.state (State.Recv_synack ack_number);
     (* xmit ACK *)
-    TXS.output pcb.txq (Cstruct.create 0) >>= fun () ->
+    TXS.output pcb.txq Bytes.empty >>= fun () ->
     Lwt.return (pcb, th)
 
   let is_correct_ack ~tx_isn ~ack_number =
@@ -574,7 +574,7 @@ struct
   (* Main input function for TCP packets *)
   let input t ~src ~dst data =
     let open Tcp_packet in
-    match Unmarshal.of_cstruct data with
+    match Unmarshal.of_bytes data with
     | Error s -> Log.debug (fun f -> f "parsing TCP header failed: %s" s);
       Lwt.return_unit
     | Ok (pkt, payload) ->
@@ -609,7 +609,7 @@ struct
     match State.state pcb.state with
     (* but it's only appropriate to send data if the connection is ready for it *)
     | State.Established | State.Close_wait -> begin
-      let len = Cstruct.length data in
+      let len = Bytes.length data in
       match write_available pcb with
       | 0 -> (* no room at all; we must wait *)
         write_wait_for pcb 1 >>= fun () ->
@@ -617,9 +617,9 @@ struct
       | av_len when av_len >= len -> (* we have enough room for the whole packet *)
         wfn [data] >>= fun n -> Lwt.return (Ok n)
       | av_len -> (* partial send is possible *)
-        let sendable = Cstruct.sub data 0 av_len in
+        let sendable = Bytes.sub data 0 av_len in
         writefn pcb wfn sendable >>= function
-        | Ok () -> writefn pcb wfn @@ Cstruct.sub data av_len (len - av_len)
+        | Ok () -> writefn pcb wfn @@ Bytes.sub data av_len (len - av_len)
         | Error _ as e -> Lwt.return e
       end
     | _ -> Lwt.return (Error `Not_ready)

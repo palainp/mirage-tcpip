@@ -17,6 +17,6 @@
 (** Checksum functions for TCP/IP *)
 
 (** One's complement checksum, RFC1071 *)
-val ones_complement: Cstruct.t -> int
+val ones_complement: Bytes.t -> int
 
-val ones_complement_list: Cstruct.t list -> int
+val ones_complement_list: Bytes.t list -> int

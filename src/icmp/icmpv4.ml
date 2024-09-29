@@ -4,8 +4,8 @@ module type S = sig
   type ipaddr = Ipaddr.V4.t
   type error
   val pp_error: error Fmt.t
-  val input : t -> src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
-  val write : t -> ?src:ipaddr -> dst:ipaddr -> ?ttl:int -> Cstruct.t -> (unit, error) result Lwt.t
+  val input : t -> src:ipaddr -> dst:ipaddr -> Bytes.t -> unit Lwt.t
+  val write : t -> ?src:ipaddr -> dst:ipaddr -> ?ttl:int -> Bytes.t -> (unit, error) result Lwt.t
 end
 
 open Lwt.Infix
@@ -42,7 +42,7 @@ module Make (IP : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) = struct
 
   let input t ~src ~dst:_ buf =
     let open Icmpv4_packet in
-    match Unmarshal.of_cstruct buf with
+    match Unmarshal.of_bytes buf with
     | Error s ->
       Log.info (fun f ->
           f "ICMP: error parsing message from %a: %s" Ipaddr.V4.pp src s);
@@ -58,16 +58,17 @@ module Make (IP : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) = struct
             f "ICMP: destination unreachable from %a" Ipaddr.V4.pp src);
         Lwt.return_unit
       | Echo_request, Id_and_seq (id, seq) ->
+        let str = Bytes.to_string payload in
         Log.debug (fun f ->
             f "ICMP echo-request received: %a (payload %a)"
-              Icmpv4_packet.pp message Cstruct.hexdump_pp payload);
+              Icmpv4_packet.pp message Ohex.pp str);
         if t.echo_reply then begin
           let icmp = {
             code = 0x00;
             ty   = Echo_reply;
             subheader = Id_and_seq (id, seq);
           } in
-          writev t ~dst:src [ Marshal.make_cstruct icmp ~payload; payload ]
+          writev t ~dst:src [ Marshal.make_bytes icmp ~payload; payload ]
           >|= function
           | Ok () -> ()
           | Error (`Ip e) ->

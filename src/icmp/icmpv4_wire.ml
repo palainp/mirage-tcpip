@@ -93,11 +93,11 @@ let ty_off = 0
 let code_off = 1
 let csum_off = 2
 
-let get_ty buf = Cstruct.get_uint8 buf ty_off
-let set_ty buf value = Cstruct.set_uint8 buf ty_off value
+let get_ty buf = Bytes.get_uint8 buf ty_off
+let set_ty buf value = Bytes.set_uint8 buf ty_off value
 
-let get_code buf = Cstruct.get_uint8 buf code_off
-let set_code buf value = Cstruct.set_uint8 buf code_off value
+let get_code buf = Bytes.get_uint8 buf code_off
+let set_code buf value = Bytes.set_uint8 buf code_off value
 
-let get_checksum buf = Cstruct.BE.get_uint16 buf csum_off
-let set_checksum buf value = Cstruct.BE.set_uint16 buf csum_off value
+let get_checksum buf = Bytes.get_uint16_be buf csum_off
+let set_checksum buf value = Bytes.set_uint16_be buf csum_off value

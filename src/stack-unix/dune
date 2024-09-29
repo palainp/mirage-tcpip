@@ -5,7 +5,7 @@
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (libraries lwt.unix ipaddr.unix cstruct-lwt tcpip.icmpv4 tcpip.ipv4
+ (libraries lwt.unix ipaddr.unix tcpip.icmpv4 tcpip.ipv4
    tcpip.ipv6))
 
 (library
@@ -15,7 +15,7 @@
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (libraries lwt.unix ipaddr.unix cstruct-lwt fmt logs))
+ (libraries lwt.unix ipaddr.unix fmt logs))
 
 (library
  (name tcp_socket_options)
@@ -37,7 +37,7 @@
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (libraries lwt.unix ipaddr.unix cstruct-lwt fmt tcpip tcp_socket_options logs))
+ (libraries lwt.unix ipaddr.unix fmt tcpip tcp_socket_options logs))
 
 (library
  (name tcpip_stack_socket)
@@ -46,5 +46,5 @@
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (libraries lwt.unix cstruct-lwt ipaddr.unix logs tcpip.ipv4 tcpip.ipv6
+ (libraries lwt.unix ipaddr.unix logs tcpip.ipv4 tcpip.ipv6
   tcpip.tcpv4v6-socket tcpip.udpv4v6-socket))

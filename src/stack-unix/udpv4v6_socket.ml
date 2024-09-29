@@ -21,7 +21,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 open Lwt.Infix
 
 type ipaddr = Ipaddr.t
-type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
+type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Bytes.t -> unit Lwt.t
 
 let any_v6 = Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
 
@@ -135,11 +135,11 @@ let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
   let rec write_to_fd fd buf =
     Lwt.catch (fun () ->
         let dst = match t.interface with `Any -> Ipaddr.(V6 (to_v6 dst)) | _ -> dst in
-        Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.to_inet_addr dst), dst_port))
+        Lwt_bytes.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.to_inet_addr dst), dst_port))
         >>= function
-        | n when n = Cstruct.length buf -> Lwt.return (Ok ())
+        | n when n = Bytes.length buf -> Lwt.return (Ok ())
         | 0 -> Lwt.return (Error `Sendto_failed)
-        | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.length buf - n))) (* keep trying *)
+        | n -> write_to_fd fd (Bytes.sub buf n (Bytes.length buf - n))) (* keep trying *)
       (fun _exn -> Lwt.return (Error `Sendto_failed))
   in
   let v4_or_v6 = match dst with Ipaddr.V4 _ -> `V4 | Ipaddr.V6 _ -> `V6 in
@@ -176,11 +176,11 @@ let listen t ~port callback =
         get_udpv4v6_listening_fd t port >|= fun (_, fds) ->
         List.iter (fun fd ->
             Lwt.async (fun () ->
-                let buf = Cstruct.create 4096 in
+                let buf = Bytes.create 4096 in
                 let rec loop () =
                   if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
                   Lwt.catch (fun () ->
-                      Lwt_cstruct.recvfrom fd buf [] >>= fun (len, sa) ->
+                      Lwt_bytes.recvfrom fd buf [] >>= fun (len, sa) ->
                       (match sa with
                        | Lwt_unix.ADDR_INET (addr, src_port) ->
                          let src = Ipaddr_unix.of_inet_addr addr in
@@ -191,10 +191,8 @@ let listen t ~port callback =
                          in
                          let dst = Ipaddr.(V6 V6.unspecified) in (* TODO *)
                          let buf =
-                           (* Use Cstruct.sub_copy once it exists in a
-                              reasonably mature cstruct release *)
-                           let b = Cstruct.create_unsafe len in
-                           Cstruct.blit buf 0 b 0 len;
+                           let b = Bytes.create len in
+                           Bytes.blit buf 0 b 0 len;
                            b
                          in
                          callback ~src ~dst ~src_port buf

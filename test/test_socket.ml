@@ -25,7 +25,7 @@ let two_connect_tcp () =
     Tcpv4v6_socket.read flow >>= function
     | Error _ -> Printf.printf "Error reading!"; Alcotest.fail "Error reading TCP flow"
     | Ok `Eof -> Printf.printf "EOF!"; Lwt.return_unit
-    | Ok (`Data buf) -> Printf.printf "Buffer received: %s\n%!" (Cstruct.to_string buf);
+    | Ok (`Data buf) -> Printf.printf "Buffer received: %s\n%!" (Bytes.to_string buf);
       Lwt.return_unit
   in
   let server_port = 14041 in
@@ -40,7 +40,7 @@ let two_connect_tcp () =
   Lwt.pick [
     Stackv4v6.listen server;
     Stackv4v6.TCP.create_connection (Stackv4v6.tcp client) (Ipaddr.V4 localhost, server_port) >|= Result.get_ok >>= fun flow ->
-    Stackv4v6.TCP.write flow (Cstruct.of_string "test!") >>= function
+    Stackv4v6.TCP.write flow (Bytes.of_string "test!") >>= function
     | Ok () -> Stackv4v6.TCP.close flow >>= fun () -> teardown ()
     | Error _ -> teardown () >>= fun () -> Alcotest.fail "Error writing to socket for TCP test"
   ]
@@ -48,8 +48,8 @@ let two_connect_tcp () =
 let icmp_echo_request () =
   Icmpv4_socket.connect () >>= fun server ->
   Icmpv4_socket.connect () >>= fun client ->
-  let echo_request = Icmpv4_packet.(Marshal.make_cstruct
-                                      ~payload:(Cstruct.create 0)
+  let echo_request = Icmpv4_packet.(Marshal.make_bytes
+                                      ~payload:(Bytes.empty)
                                       { ty = Icmpv4_wire.Echo_request;
                                         code = 0x00;
                                         subheader = Id_and_seq (0x1dea, 0x0001)
@@ -57,7 +57,7 @@ let icmp_echo_request () =
   let received_icmp = ref 0 in
   let log_and_count buf =
     received_icmp := !received_icmp + 1;
-    Logs.debug (fun f -> f "received ICMP packet number %d: %a" !received_icmp Cstruct.hexdump_pp buf);
+    Logs.debug (fun f -> f "received ICMP packet number %d: %a" !received_icmp Ohex._pp (Bytes.to_string buf));
     Lwt.return_unit
   in
   Lwt.pick [

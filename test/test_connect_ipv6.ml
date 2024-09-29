@@ -52,7 +52,7 @@ module Test_connect_ipv6 (B : Vnetif_backends.Backend) = struct
     | Ok (`Data b) ->
       Lwt_unix.sleep 0.1 >>= fun () ->
       (* sleep first to capture data in pcap *)
-      Alcotest.(check string) "accept" expected (Cstruct.to_string b);
+      Alcotest.(check string) "accept" expected (Bytes.to_string b);
       Log.debug (fun f -> f "Connection closed");
       Lwt.return_unit
 
@@ -76,7 +76,7 @@ module Test_connect_ipv6 (B : Vnetif_backends.Backend) = struct
        or_error "connect" conn (Ipaddr.V6 server_address, 80) >>= fun flow ->
        Log.debug (fun f -> f "Connected to other end...");
 
-       V.Stack.TCP.write flow (Cstruct.of_string test_string) >>= function
+       V.Stack.TCP.write flow (Bytes.of_string test_string) >>= function
        | Error `Closed -> err_write_eof ()
        | Error e -> err_write e
        | Ok ()   ->

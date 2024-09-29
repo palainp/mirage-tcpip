@@ -12,9 +12,9 @@ let protocol_to_int = function
   | `UDP    -> 17
 
 let set_ip buf off v =
-  Ipaddr_cstruct.V6.write_cstruct_exn v (Cstruct.shift buf off)
+  Ipaddr_bytes.V6.write_bytes_exn v (Cstruct.shift buf off)
 let get_ip buf off =
-  Ipaddr_cstruct.V6.of_cstruct_exn (Cstruct.shift buf off)
+  Ipaddr_bytes.V6.of_bytes_exn (Cstruct.shift buf off)
 
 let version_flow_off = 0
 let len_off = 4
@@ -23,17 +23,17 @@ let hlim_off = 7
 let src_off = 8
 let dst_off = 24
 
-let get_version_flow buf = Cstruct.BE.get_uint32 buf version_flow_off
-let set_version_flow buf v = Cstruct.BE.set_uint32 buf version_flow_off v
+let get_version_flow buf = Bytes.get_uint32_be buf version_flow_off
+let set_version_flow buf v = Bytes.set_uint32_be buf version_flow_off v
 
-let get_nhdr buf = Cstruct.get_uint8 buf nhdr_off
-let set_nhdr buf v = Cstruct.set_uint8 buf nhdr_off v
+let get_nhdr buf = Bytes.get_uint8 buf nhdr_off
+let set_nhdr buf v = Bytes.set_uint8 buf nhdr_off v
 
-let get_len buf = Cstruct.BE.get_uint16 buf len_off
-let set_len buf v = Cstruct.BE.set_uint16 buf len_off v
+let get_len buf = Bytes.get_uint16_be buf len_off
+let set_len buf v = Bytes.set_uint16_be buf len_off v
 
-let get_hlim buf = Cstruct.get_uint8 buf hlim_off
-let set_hlim buf v = Cstruct.set_uint8 buf hlim_off v
+let get_hlim buf = Bytes.get_uint8 buf hlim_off
+let set_hlim buf v = Bytes.set_uint8 buf hlim_off v
 
 let get_src buf = get_ip buf src_off
 let set_src buf v = set_ip buf src_off v
@@ -42,12 +42,12 @@ let get_dst buf = get_ip buf dst_off
 let set_dst buf v = set_ip buf dst_off v
 
 let ty_off = 0
-let get_ty buf = Cstruct.get_uint8 buf ty_off
-let set_ty buf v = Cstruct.set_uint8 buf ty_off v
+let get_ty buf = Bytes.get_uint8 buf ty_off
+let set_ty buf v = Bytes.set_uint8 buf ty_off v
 
 let code_off = 1
-let get_code buf = Cstruct.get_uint8 buf code_off
-let set_code buf v = Cstruct.set_uint8 buf code_off v
+let get_code buf = Bytes.get_uint8 buf code_off
+let set_code buf v = Bytes.set_uint8 buf code_off v
 
 module Ns = struct
   let sizeof_ns = 24
@@ -56,10 +56,10 @@ module Ns = struct
   let reserved_off = 4
   let target_off = 8
 
-  let get_checksum buf = Cstruct.BE.get_uint16 buf csum_off
-  let set_checksum buf v = Cstruct.BE.set_uint16 buf csum_off v
-  let get_reserved buf = Cstruct.BE.get_uint32 buf reserved_off
-  let set_reserved buf v = Cstruct.BE.set_uint32 buf reserved_off v
+  let get_checksum buf = Bytes.get_uint16_be buf csum_off
+  let set_checksum buf v = Bytes.set_uint16_be buf csum_off v
+  let get_reserved buf = Bytes.get_uint32_be buf reserved_off
+  let set_reserved buf v = Bytes.set_uint32_be buf reserved_off v
   let get_target buf = get_ip buf target_off
   let set_target buf v = set_ip buf target_off v
 end
@@ -70,12 +70,12 @@ module Llopt = struct
   let len_off = 1
   let addr_off = 2
 
-  let get_len buf = Cstruct.get_uint8 buf len_off
-  let set_len buf v = Cstruct.set_uint8 buf len_off v
+  let get_len buf = Bytes.get_uint8 buf len_off
+  let set_len buf v = Bytes.set_uint8 buf len_off v
 
-  let get_addr buf = Macaddr_cstruct.of_cstruct_exn (Cstruct.shift buf addr_off)
+  let get_addr buf = Macaddr_bytes.of_bytes_exn (Cstruct.shift buf addr_off)
   let set_addr buf v =
-    Macaddr_cstruct.write_cstruct_exn v (Cstruct.shift buf addr_off)
+    Macaddr_bytes.write_bytes_exn v (Cstruct.shift buf addr_off)
 end
 
 module Icmpv6 = struct
@@ -95,7 +95,7 @@ module Na = struct
   let set_target = Ns.set_target
 
   let get_first_reserved_byte buf =
-    Cstruct.get_uint8 buf Ns.reserved_off
+    Bytes.get_uint8 buf Ns.reserved_off
 
   let get_router buf = (get_first_reserved_byte buf land 0x80) <> 0
   let get_solicited buf = (get_first_reserved_byte buf land 0x40) <> 0
@@ -118,11 +118,11 @@ module Pingv6 = struct
   let get_checksum = Ns.get_checksum
   let set_checksum = Ns.set_checksum
 
-  let get_id buf = Cstruct.BE.get_uint16 buf id_off
-  let set_id buf v = Cstruct.BE.set_uint16 buf id_off v
+  let get_id buf = Bytes.get_uint16_be buf id_off
+  let set_id buf v = Bytes.set_uint16_be buf id_off v
 
-  let get_seq buf = Cstruct.BE.set_uint16 buf seq_off
-  let set_seq buf v = Cstruct.BE.set_uint16 buf seq_off v
+  let get_seq buf = Bytes.set_uint16_be buf seq_off
+  let set_seq buf v = Bytes.set_uint16_be buf seq_off v
 end
 
 module Opt = struct
@@ -139,20 +139,20 @@ module Opt_prefix = struct
   let set_len = Llopt.set_len
 
   let prefix_len_off = 2
-  let get_prefix_len buf = Cstruct.get_uint8 buf prefix_len_off
-  let set_prefix_len buf v = Cstruct.set_uint8 buf prefix_len_off v
+  let get_prefix_len buf = Bytes.get_uint8 buf prefix_len_off
+  let set_prefix_len buf v = Bytes.set_uint8 buf prefix_len_off v
 
   let reserved1_off = 3
-  let get_reserved1 buf = Cstruct.get_uint8 buf reserved1_off
-  let set_reserved1 buf v = Cstruct.set_uint8 buf reserved1_off v
+  let get_reserved1 buf = Bytes.get_uint8 buf reserved1_off
+  let set_reserved1 buf v = Bytes.set_uint8 buf reserved1_off v
 
   let valid_lifetime_off = 4
-  let get_valid_lifetime buf = Cstruct.BE.get_uint32 buf valid_lifetime_off
-  let set_valid_lifetime buf v = Cstruct.BE.set_uint32 buf valid_lifetime_off v
+  let get_valid_lifetime buf = Bytes.get_uint32_be buf valid_lifetime_off
+  let set_valid_lifetime buf v = Bytes.set_uint32_be buf valid_lifetime_off v
 
   let preferred_lifetime_off = 8
-  let get_preferred_lifetime buf = Cstruct.BE.get_uint32 buf preferred_lifetime_off
-  let set_preferred_lifetime buf v = Cstruct.BE.set_uint32 buf preferred_lifetime_off v
+  let get_preferred_lifetime buf = Bytes.get_uint32_be buf preferred_lifetime_off
+  let set_preferred_lifetime buf v = Bytes.set_uint32_be buf preferred_lifetime_off v
 
   let reserved2_off = 12
 
@@ -173,18 +173,18 @@ module Ra = struct
   let set_checksum = Ns.set_checksum
 
   let cur_hop_limit_off = 4
-  let get_cur_hop_limit buf = Cstruct.get_uint8 buf cur_hop_limit_off
+  let get_cur_hop_limit buf = Bytes.get_uint8 buf cur_hop_limit_off
 
   let reserved_off = 5
 
   let router_lifetime_off = 6
-  let get_router_lifetime buf = Cstruct.BE.get_uint16 buf router_lifetime_off
+  let get_router_lifetime buf = Bytes.get_uint16_be buf router_lifetime_off
 
   let reachable_time_off = 8
-  let get_reachable_time buf = Cstruct.BE.get_uint32 buf reachable_time_off
+  let get_reachable_time buf = Bytes.get_uint32_be buf reachable_time_off
 
   let retrans_timer_off = 12
-  let get_retrans_timer buf = Cstruct.BE.get_uint32 buf retrans_timer_off
+  let get_retrans_timer buf = Bytes.get_uint32_be buf retrans_timer_off
 end
 
 module Redirect = struct

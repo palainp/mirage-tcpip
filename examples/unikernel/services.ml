@@ -14,7 +14,7 @@ module Main (S: Tcpip.Stack.V4V6) = struct
     in
     let make_chars how_many start_at =
       let output = (String.sub (charpool ^ charpool) start_at how_many) ^ "\n" in
-      Cstruct.of_string output
+      Bytes.of_string output
     in
 
     S.TCP.write flow (make_chars how_many start_at) >>= function

@@ -109,12 +109,12 @@ let link_local_addr mac =
   Ipaddr.Prefix.(make (bits link) addr)
 
 let multicast_mac =
-  let pbuf = Cstruct.create 6 in
-  Cstruct.BE.set_uint16 pbuf 0 0x3333;
+  let pbuf = Bytes.create 6 in
+  Bytes.set_uint16_be pbuf 0 0x3333;
   fun ip ->
     let _, _, _, n = Ipaddr.to_int32 ip in
-    Cstruct.BE.set_uint32 pbuf 2 n;
-    Macaddr_cstruct.of_cstruct_exn pbuf
+    Bytes.set_uint32_be pbuf 2 n;
+    Macaddr_bytes.of_bytes_exn pbuf
 
 (* vary the reachable time by some random factor between 0.5 and 1.5 *)
 let compute_reachable_time r reachable_time =
@@ -124,12 +124,12 @@ let compute_reachable_time r reachable_time =
   in
   Int64.of_float (factor *. Int64.to_float reachable_time)
 
-let cksum_buf = Cstruct.create 8
+let cksum_buf = Bytes.create 8
 
 let checksum' ~proto frame bufs =
-  Cstruct.BE.set_uint32 cksum_buf 0 (Int32.of_int (Cstruct.lenv bufs));
-  Cstruct.BE.set_uint32 cksum_buf 4 (Int32.of_int proto);
-  let src_dst = Cstruct.sub frame 8 (2 * 16) in
+  Bytes.set_uint32_be cksum_buf 0 (Int32.of_int (Cstruct.lenv bufs));
+  Bytes.set_uint32_be cksum_buf 4 (Int32.of_int proto);
+  let src_dst = Bytes.sub frame 8 (2 * 16) in
   Tcpip_checksum.ones_complement_list (src_dst :: cksum_buf :: bufs)
 
 let checksum frame bufs =
@@ -213,14 +213,14 @@ module Allocate = struct
 
   let pong ~src ~dst ~hlim ~id ~seq ~data =
     (* TODO data may exceed size, fragment? *)
-    let size = Ipv6_wire.Pingv6.sizeof_pingv6 + Cstruct.length data in
+    let size = Ipv6_wire.Pingv6.sizeof_pingv6 + Bytes.length data in
     let fillf hdr icmpbuf =
       Ipv6_wire.set_ty icmpbuf 129; (* ECHO REPLY *)
       Ipv6_wire.set_code icmpbuf 0;
       Ipv6_wire.Pingv6.set_id icmpbuf id;
       Ipv6_wire.Pingv6.set_seq icmpbuf seq;
       Ipv6_wire.Pingv6.set_checksum icmpbuf 0;
-      Cstruct.blit data 0 icmpbuf Ipv6_wire.Pingv6.sizeof_pingv6 (Cstruct.length data);
+      Bytes.blit data 0 icmpbuf Ipv6_wire.Pingv6.sizeof_pingv6 (Bytes.length data);
       Ipv6_wire.Pingv6.set_checksum icmpbuf @@ checksum hdr [ icmpbuf ];
       size
     in
@@ -715,11 +715,11 @@ module Parser = struct
     | NA of Ipaddr.t * Ipaddr.t * na
     | NS of Ipaddr.t * Ipaddr.t * ns
     | RA of Ipaddr.t * Ipaddr.t * ra
-    | Ping of Ipaddr.t * Ipaddr.t * int * int * Cstruct.t
-    | Pong of Cstruct.t
-    | Udp of Ipaddr.t * Ipaddr.t * Cstruct.t
-    | Tcp of Ipaddr.t * Ipaddr.t * Cstruct.t
-    | Default of int * Ipaddr.t * Ipaddr.t * Cstruct.t
+    | Ping of Ipaddr.t * Ipaddr.t * int * int * Bytes.t
+    | Pong of Bytes.t
+    | Udp of Ipaddr.t * Ipaddr.t * Bytes.t
+    | Tcp of Ipaddr.t * Ipaddr.t * Bytes.t
+    | Default of int * Ipaddr.t * Ipaddr.t * Bytes.t
 
   type option =
     | SLLA of Macaddr.t
@@ -728,7 +728,7 @@ module Parser = struct
     | PREFIX of pfx
 
   let rec parse_options1 opts =
-    if Cstruct.length opts >= Ipv6_wire.Opt.sizeof_opt then
+    if Bytes.length opts >= Ipv6_wire.Opt.sizeof_opt then
       (* TODO check for invalid len == 0 *)
       let opt, opts = Cstruct.split opts (Ipv6_wire.Opt.get_len opts * 8) in
       match Ipv6_wire.get_ty opt, Ipv6_wire.Opt.get_len opt with
@@ -737,7 +737,7 @@ module Parser = struct
       | 2, 1 ->
         TLLA (Ipv6_wire.Llopt.get_addr opt) :: parse_options1 opts
       | 5, 1 ->
-        MTU (Int32.to_int (Cstruct.BE.get_uint32 opt 4)) :: parse_options1 opts
+        MTU (Int32.to_int (Bytes.get_uint32_be opt 4)) :: parse_options1 opts
       | 3, 4 ->
         let pfx_prefix =
           Ipaddr.Prefix.make
@@ -870,8 +870,8 @@ module Parser = struct
     end else begin
       match Ipv6_wire.get_ty icmpbuf with
       | 128 -> (* Echo request *)
-        let id = Cstruct.BE.get_uint16 icmpbuf 4 in
-        let seq = Cstruct.BE.get_uint16 icmpbuf 6 in
+        let id = Bytes.get_uint16_be icmpbuf 4 in
+        let seq = Bytes.get_uint16_be icmpbuf 6 in
         Ping (src, dst, id, seq, Cstruct.shift icmpbuf 8)
       | 129 (* Echo reply *) ->
         Pong (Cstruct.shift buf poff)
@@ -999,14 +999,14 @@ module Parser = struct
     loop (poff+2)
 
   let packet is_my_addr buf =
-    if Cstruct.length buf < Ipv6_wire.sizeof_ipv6 || Cstruct.length buf < Ipv6_wire.sizeof_ipv6 + Ipv6_wire.get_len buf then begin
+    if Bytes.length buf < Ipv6_wire.sizeof_ipv6 || Bytes.length buf < Ipv6_wire.sizeof_ipv6 + Ipv6_wire.get_len buf then begin
       Log.debug (fun m -> m "short IPv6 packet received, dropping");
       Drop
     end else if Int32.logand (Ipv6_wire.get_version_flow buf) 0xF0000000l <> 0x60000000l then begin
       Log.debug (fun m -> m "version in IPv6 packet not 6");
       Drop
     end else begin
-      let buf = Cstruct.sub buf 0 (Ipv6_wire.sizeof_ipv6 + Ipv6_wire.get_len buf) in
+      let buf = Bytes.sub buf 0 (Ipv6_wire.sizeof_ipv6 + Ipv6_wire.get_len buf) in
       let src = Ipv6_wire.get_src buf in
       let dst = Ipv6_wire.get_dst buf in
       if Ipaddr.Prefix.(mem src multicast) then begin
@@ -1023,9 +1023,9 @@ module Parser = struct
 end
 
 type event =
-  [ `Tcp of ipaddr * ipaddr * Cstruct.t
-  | `Udp of ipaddr * ipaddr * Cstruct.t
-  | `Default of int * ipaddr * ipaddr * Cstruct.t ]
+  [ `Tcp of ipaddr * ipaddr * Bytes.t
+  | `Udp of ipaddr * ipaddr * Bytes.t
+  | `Default of int * ipaddr * ipaddr * Bytes.t ]
 
 (* TODO add destination cache *)
 type context =
@@ -1039,7 +1039,7 @@ type context =
     base_reachable_time : time;
     reachable_time : time;
     retrans_timer : time;
-    packet_queue : (int * (Cstruct.t -> int)) PacketQueue.t;
+    packet_queue : (int * (Bytes.t -> int)) PacketQueue.t;
     handle_ra : bool }
 
 let next_hop ctx ip =

@@ -101,10 +101,12 @@ let test_digest netif1 netif2 =
         [ read_digest [];
           begin
             let rec send_data data =
-              if Cstruct.length data < mtu then
+              if Bytes.length data < mtu then
                 (TCPIP.TCP.write flow data >>= fun _ -> Lwt.return_unit)
               else
-                let sub, data = Cstruct.split data mtu in
+                let len = Bytes.length data in
+                let sub = Bytes.sub data 0 mtu in
+                let data = Bytes.sub data mtu (len-mtu) in
                 Lwt.pick
                   [
                     (TCPIP.TCP.write flow sub >>= fun _ -> Lwt.return_unit);
@@ -113,7 +115,7 @@ let test_digest netif1 netif2 =
                   ]
                 >>= fun () ->
                 send_data data in
-            send_data @@ Cstruct.of_string data >>= fun () ->
+            send_data @@ Bytes.of_string data >>= fun () ->
             Server_log.debug (fun f -> f "wrote data");
             TCPIP.TCP.close flow
           end
@@ -128,7 +130,7 @@ let test_digest netif1 netif2 =
            Client_log.debug (fun f -> f "XXXX client read error");
            TCPIP.TCP.close flow
          | Ok `Eof ->
-           TCPIP.TCP.write flow @@ Cstruct.of_string "thanks for all the fish"
+           TCPIP.TCP.write flow @@ Bytes.of_string "thanks for all the fish"
            >>= fun _ ->
            TCPIP.TCP.close flow
          | Ok (`Data _data) ->

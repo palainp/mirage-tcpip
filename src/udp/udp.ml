@@ -22,7 +22,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module Make (Ip : Tcpip.Ip.S) (Random : Mirage_crypto_rng_mirage.S) = struct
 
   type ipaddr = Ip.ipaddr
-  type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
+  type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Bytes.t -> unit Lwt.t
 
   type error = [ `Ip of Ip.error ]
   let pp_error ppf (`Ip e) = Ip.pp_error ppf e
@@ -46,7 +46,7 @@ module Make (Ip : Tcpip.Ip.S) (Random : Mirage_crypto_rng_mirage.S) = struct
      here?  Currently we process all incoming packets without making
      sure they're either unicast for us or otherwise interesting. *)
   let input t ~src ~dst buf =
-    match Udp_packet.Unmarshal.of_cstruct buf with
+    match Udp_packet.Unmarshal.of_bytes buf with
     | Error s ->
       Log.debug (fun f ->
           f "Discarding received UDP message: error parsing: %s" s);
@@ -62,12 +62,12 @@ module Make (Ip : Tcpip.Ip.S) (Random : Mirage_crypto_rng_mirage.S) = struct
       | Some p -> p
     in
     let fill_hdr buf =
-      let payload_size = Cstruct.lenv bufs in
+      let payload_size = List.fold_left (fun n x -> n + Bytes.length x) 0 bufs in
       let ph =
         Ip.pseudoheader t.ip ?src dst `UDP (payload_size + Udp_wire.sizeof_udp)
       in
       let udp_header = Udp_packet.({ src_port; dst_port; }) in
-      match Udp_packet.Marshal.into_cstruct udp_header buf ~pseudoheader:ph ~payload:(Cstruct.concat bufs) with
+      match Udp_packet.Marshal.into_bytes udp_header buf ~pseudoheader:ph ~payload:(Bytes.concat bufs) with
       | Ok () -> 8
       | Error msg ->
         Logs.err (fun m -> m "error while assembling udp header: %s, ignoring" msg);

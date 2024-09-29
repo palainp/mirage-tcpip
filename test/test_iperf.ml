@@ -87,14 +87,14 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
   let iperfclient s amt dest_ip dport =
     let iperftx flow =
       Logs.info (fun f -> f  "Iperf client: Made connection to server.");
-      let a = Cstruct.create mlen in
-      Cstruct.blit_from_string msg 0 a 0 mlen;
+      let a = Bytes.create mlen in
+      Bytes.blit_string msg 0 a 0 mlen;
       let rec loop = function
         | 0 -> Lwt.return_unit
         | n -> write_and_check flow a >>= fun () -> loop (n-1)
       in
       loop (amt / mlen) >>= fun () ->
-      let a = Cstruct.sub a 0 (amt - (mlen * (amt/mlen))) in
+      let a = Bytes.sub a 0 (amt - (mlen * (amt/mlen))) in
       write_and_check flow a >>= fun () ->
       V.Stack.TCP.close flow
     in
@@ -140,7 +140,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
         Lwt.return_unit
       | `Data data ->
         begin
-          let l = Cstruct.length data in
+          let l = Bytes.length data in
           st.bytes <- (Int64.add st.bytes (Int64.of_int l));
           st.packets <- (Int64.add st.packets 1L);
           st.bin_bytes <- (Int64.add st.bin_bytes (Int64.of_int l));

@@ -48,7 +48,7 @@ module Make (Ip : Tcpip.Ip.S) : sig
     ?rst:bool -> ?syn:bool -> ?fin:bool -> ?psh:bool ->
     rx_ack:Sequence.t option -> seq:Sequence.t -> window:int ->
     options:Options.t list ->
-    Cstruct.t -> (unit, error) result Lwt.t
+    Bytes.t -> (unit, error) result Lwt.t
   (** [xmit] emits a TCP packet over the network. *)
 
 end

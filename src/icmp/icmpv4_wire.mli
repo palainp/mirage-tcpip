@@ -37,11 +37,11 @@ val unreachable_reason_to_int : unreachable_reason -> int
 
 val sizeof_icmpv4 : int
 
-val get_ty : Cstruct.t -> int
-val set_ty : Cstruct.t -> int -> unit
+val get_ty : Bytes.t -> int
+val set_ty : Bytes.t -> int -> unit
 
-val get_code : Cstruct.t -> int
-val set_code : Cstruct.t -> int -> unit
+val get_code : Bytes.t -> int
+val set_code : Bytes.t -> int -> unit
 
-val get_checksum : Cstruct.t -> int
-val set_checksum : Cstruct.t -> int -> unit
+val get_checksum : Bytes.t -> int
+val set_checksum : Bytes.t -> int -> unit

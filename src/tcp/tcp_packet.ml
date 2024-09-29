@@ -5,12 +5,12 @@ type t = {
   rst : bool;
   syn : bool;
   fin : bool;
-  window : Cstruct.uint16;
+  window : int;
   options : Options.t list;
   sequence : Sequence.t;
   ack_number : Sequence.t;
-  src_port : Cstruct.uint16;
-  dst_port : Cstruct.uint16;
+  src_port : int;
+  dst_port : int;
 }
 
 let equal {urg; ack; psh; rst; syn; fin; window; options; sequence; ack_number;
@@ -34,22 +34,22 @@ let ( let* ) = Result.bind
 module Unmarshal = struct
   type error = string
 
-  let of_cstruct pkt =
+  let of_bytes pkt =
     let open Tcp_wire in
     let check_len pkt =
-      if Cstruct.length pkt < sizeof_tcp then
+      if Bytes.length pkt < sizeof_tcp then
         Error "packet too short to contain a TCP packet of any size"
       else
         Ok (get_data_offset pkt)
     in
-    let long_enough data_offset = if Cstruct.length pkt < data_offset then
+    let long_enough data_offset = if Bytes.length pkt < data_offset then
         Error "packet too short to contain a TCP packet of the size claimed"
       else
         Ok ()
     in
     let options data_offset pkt =
       if data_offset > 20 then
-        Options.unmarshal (Cstruct.sub pkt sizeof_tcp (data_offset - sizeof_tcp))
+        Options.unmarshal (Bytes.sub pkt sizeof_tcp (data_offset - sizeof_tcp))
       else if data_offset < 20 then
         Error "data offset was unreasonably short; TCP header can't be valid"
       else (Ok [])
@@ -68,7 +68,8 @@ module Unmarshal = struct
     let window = get_window pkt in
     let src_port = get_src_port pkt in
     let dst_port = get_dst_port pkt in
-    let data = Cstruct.shift pkt data_offset in
+    let len = Bytes.length pkt in
+    let data = Bytes.sub pkt data_offset (len-data_offset) in
     Ok ({ urg; ack; psh; rst; syn; fin; window; options;
           sequence; ack_number; src_port; dst_port }, data)
 end
@@ -79,7 +80,7 @@ module Marshal = struct
 
   let unsafe_fill ~pseudoheader ~payload t buf options_len =
     let data_off = sizeof_tcp + options_len in
-    let buf = Cstruct.sub buf 0 data_off in
+    let buf = Bytes.sub buf 0 data_off in
     set_src_port buf t.src_port;
     set_dst_port buf t.dst_port;
     set_sequence buf (Sequence.to_int32 t.sequence);
@@ -103,15 +104,15 @@ module Marshal = struct
     set_checksum buf checksum;
     ()
 
-  let into_cstruct ~pseudoheader ~payload t buf =
+  let into_bytes ~pseudoheader ~payload t buf =
     let check_header_len () =
-      if (Cstruct.length buf) < sizeof_tcp then Error "Not enough space for a TCP header"
+      if (Bytes.length buf) < sizeof_tcp then Error "Not enough space for a TCP header"
       else Ok ()
     in
     let check_overall_len header_length =
-      if (Cstruct.length buf) < header_length then
+      if (Bytes.length buf) < header_length then
         Error (Printf.sprintf "Not enough space for TCP header: %d < %d"
-                 (Cstruct.length buf) header_length)
+                 (Bytes.length buf) header_length)
       else Ok ()
     in
     let insert_options options_frame =
@@ -125,21 +126,22 @@ module Marshal = struct
            to write the options *)
         | Invalid_argument s -> Error s
     in
-    let options_frame = Cstruct.shift buf sizeof_tcp in
+    let len = Bytes.length buf in
+    let options_frame = Bytes.sub buf sizeof_tcp (len-sizeof_tcp) in
     let* () = check_header_len () in
     let* options_len = insert_options options_frame in
     let* () = check_overall_len (sizeof_tcp + options_len) in
-    let buf = Cstruct.sub buf 0 (sizeof_tcp + options_len) in
+    let buf = Bytes.sub buf 0 (sizeof_tcp + options_len) in
     unsafe_fill ~pseudoheader ~payload t buf options_len;
     Ok (sizeof_tcp + options_len)
 
-  let make_cstruct ~pseudoheader ~payload t =
-    let buf = Cstruct.create (sizeof_tcp + 40) in (* more than 40 bytes of options can't
+  let make_bytes ~pseudoheader ~payload t =
+    let buf = Bytes.create (sizeof_tcp + 40) in (* more than 40 bytes of options can't
                                                      be signalled in the length field of
                                                      the tcp header *)
-    let options_buf = Cstruct.shift buf sizeof_tcp in
+    let options_buf = Bytes.sub buf sizeof_tcp 40 in
     let options_len = Options.marshal options_buf t.options in
-    let buf = Cstruct.sub buf 0 (sizeof_tcp + options_len) in
+    let buf = Bytes.sub buf 0 (sizeof_tcp + options_len) in
     unsafe_fill ~pseudoheader ~payload t buf options_len;
     buf
 end

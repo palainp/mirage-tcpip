@@ -24,7 +24,7 @@ module IPV4V6
     (Ipv6 : Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t and type prefix = Ipaddr.V6.Prefix.t) = struct
 
   type ipaddr   = Ipaddr.t
-  type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
+  type callback = src:ipaddr -> dst:ipaddr -> Bytes.t -> unit Lwt.t
 
   let pp_ipaddr = Ipaddr.pp
 
@@ -58,8 +58,8 @@ module IPV4V6
     and default6 ~proto ~src ~dst payload = default ~proto ~src:(Ipaddr.V6 src) ~dst:(Ipaddr.V6 dst) payload
     in
     fun buf ->
-      if Cstruct.length buf >= 1 then
-        let v = Cstruct.get_uint8 buf 0 lsr 4 in
+      if Bytes.length buf >= 1 then
+        let v = Bytes.get_uint8 buf 0 lsr 4 in
         if v = 4 && not t.ipv6_only then
           Ipv4.input t.ipv4 ~tcp:tcp4 ~udp:udp4 ~default:default4 buf
         else if v = 6 && not t.ipv4_only then

@@ -12,7 +12,7 @@ let close_ack_scenario =
         let id = reply_id_from ~src ~dst data in
         WIRE.xmit ~ip id ~syn:true ~rx_ack:(ack data)
           ~seq:(Sequence.of_int32 1000000l) ~window
-          ~options (Cstruct.create 0)
+          ~options (Bytes.empty)
           >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_ACK)
       ) else
@@ -21,7 +21,7 @@ let close_ack_scenario =
       if Tcp_wire.get_ack data then (
         let id = reply_id_from ~src ~dst data in
         WIRE.xmit ~ip id ~rx_ack:(ack data) ~fin:true ~seq:(Sequence.of_int32 1000001l)
-          ~window ~options (Cstruct.create 0)
+          ~window ~options (Bytes.empty)
         >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_FIN)
       ) else
@@ -30,7 +30,7 @@ let close_ack_scenario =
       if (Tcp_wire.get_fin data)  then
         let id = reply_id_from ~src ~dst data in
         WIRE.xmit ~ip id ~rx_ack:(ack data) ~seq:(Sequence.of_int32 1000002l)
-          ~window:0 ~options (Cstruct.create 0)
+          ~window:0 ~options (Bytes.empty)
         >|= Result.get_ok >>= fun () ->
         Lwt.return Fsm_done
       else
@@ -56,7 +56,7 @@ let close_ack_scenario =
           let id = reply_id_from ~src ~dst data in
           WIRE.xmit ~ip id ~syn:true ~rx_ack:(ack data)
             ~seq:(Sequence.of_int32 1000000l) ~window
-            ~options (Cstruct.create 0)
+            ~options (Bytes.empty)
             >|= Result.get_ok >>= fun () ->
           Lwt.return (Fsm_next `WAIT_FOR_ACK)
         ) else
@@ -65,7 +65,7 @@ let close_ack_scenario =
         if Tcp_wire.get_ack data then (
           let id = reply_id_from ~src ~dst data in
           WIRE.xmit ~ip id ~rx_ack:(ack data) ~fin:true ~seq:(Sequence.of_int32 1000001l)
-            ~window ~options (Cstruct.create 0)
+            ~window ~options (Bytes.empty)
           >|= Result.get_ok >>= fun () ->
           Lwt.return (Fsm_next `WAIT_FOR_FIN)
         ) else
@@ -74,7 +74,7 @@ let close_ack_scenario =
         if (Tcp_wire.get_fin data)  then
           let id = reply_id_from ~src ~dst data in
           WIRE.xmit ~ip id ~rx_ack:None ~rst:true ~seq:(Sequence.of_int32 1000001l)
-            ~window:0 ~options (Cstruct.create 0)
+            ~window:0 ~options (Bytes.empty)
           >|= Result.get_ok >>= fun () ->
           Lwt.return (Fsm_next `WAIT_FOR_CHALLENGE_ACK)
         else
@@ -83,7 +83,7 @@ let close_ack_scenario =
         if (Tcp_wire.get_ack data)  then
           let id = reply_id_from ~src ~dst data in
           WIRE.xmit ~ip id ~rx_ack:None ~rst:true ~seq:(Sequence.of_int32 1000002l)
-            ~window:0 ~options (Cstruct.create 0)
+            ~window:0 ~options (Bytes.empty)
           >|= Result.get_ok >>= fun () ->
           Lwt.return (Fsm_done)
         else

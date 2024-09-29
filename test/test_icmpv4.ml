@@ -12,9 +12,9 @@ module Static_arp = Static_arp.Make(E)(Time)
 open Lwt.Infix
 
 type decomposed = {
-  ipv4_payload : Cstruct.t;
+  ipv4_payload : Bytes.t;
   ipv4_header : Ipv4_packet.t;
-  ethernet_payload : Cstruct.t;
+  ethernet_payload : Bytes.t;
   ethernet_header : Ethernet.Packet.t;
 }
 
@@ -72,33 +72,33 @@ let inform_arp stack = Static_arp.add_entry stack.arp
 let mac_of_stack stack = E.mac stack.ethif
 
 let short_read () =
-  let too_short = Cstruct.create 4 in
-  match Icmpv4_packet.Unmarshal.of_cstruct too_short with
+  let too_short = Bytes.create 4 in
+  match Icmpv4_packet.Unmarshal.of_bytes too_short with
   | Ok (icmp, _) ->
     Alcotest.fail (Format.asprintf "processed something too short to be real: %a produced %a"
-		     Cstruct.hexdump_pp too_short Icmpv4_packet.pp icmp)
+		     Ohex._pp (Bytes.to_string too_short) Icmpv4_packet.pp icmp)
   | Error str -> Printf.printf "short packet rejected successfully! msg: %s\n" str;
     Lwt.return_unit
 
 let echo_request () =
   let seq_no = 0x01 in
   let id_no = 0x1234 in
-  let request_payload = Cstruct.of_string "plz reply i'm so lonely" in
+  let request_payload = Bytes.of_string "plz reply i'm so lonely" in
   get_stack speaker_address >>= fun speaker ->
   get_stack ~backend:speaker.backend listener_address >>= fun listener ->
   inform_arp speaker listener_address (mac_of_stack listener);
   inform_arp listener speaker_address (mac_of_stack speaker);
   let req = Icmpv4_packet.({code = 0x00; ty = Icmpv4_wire.Echo_request;
                             subheader = Id_and_seq (id_no, seq_no)}) in
-  let echo_request = Cstruct.create 2048 in
-  Icmpv4_packet.Marshal.into_cstruct req echo_request ~payload:request_payload >>=? fun () ->
-  Cstruct.blit request_payload 0 echo_request (Icmpv4_wire.sizeof_icmpv4) (Cstruct.length request_payload);
-  let echo_request = Cstruct.sub echo_request 0 (Icmpv4_wire.sizeof_icmpv4 + Cstruct.length request_payload) in
+  let echo_request = Bytes.create 2048 in
+  Icmpv4_packet.Marshal.into_bytes req echo_request ~payload:request_payload >>=? fun () ->
+  Bytes.blit request_payload 0 echo_request (Icmpv4_wire.sizeof_icmpv4) (Bytes.length request_payload);
+  let echo_request = Bytes.sub echo_request 0 (Icmpv4_wire.sizeof_icmpv4 + Bytes.length request_payload) in
   let check buf =
     let open Icmpv4_packet in
-    Log.debug (fun f -> f "Incoming ICMP message: %a" Cstruct.hexdump_pp buf);
-    Cstruct.hexdump buf;
-    Unmarshal.of_cstruct buf >>=? fun (reply, payload) ->
+    Log.debug (fun f -> f "Incoming ICMP message: %a" Ohex.pp (Bytes.to_string buf));
+    Ohex.hexdump (Bytes.to_string buf);
+    Unmarshal.of_bytes buf >>=? fun (reply, payload) ->
     match reply.subheader with
     | Next_hop_mtu _ | Pointer _ | Address _ | Unused ->
       Alcotest.fail "received an ICMP message which wasn't an echo-request or reply"
@@ -107,7 +107,7 @@ let echo_request () =
       Alcotest.(check int) "icmp echo-reply code" 0x00 reply.code; (* should be code 0 *)
       Alcotest.(check int) "icmp echo-reply id" id_no id;
       Alcotest.(check int) "icmp echo-reply seq" seq_no seq;
-      Alcotest.(check cstruct) "icmp echo-reply payload" payload request_payload;
+      Alcotest.(check bytes) "icmp echo-reply payload" payload request_payload;
       Lwt.return_unit
   in
   Lwt.async (fun () -> Lwt.pick [
@@ -126,9 +126,9 @@ let echo_silent () =
   get_stack ~backend:speaker.backend listener_address >>= fun listener ->
   let req = ({code = 0x00; ty = Icmpv4_wire.Echo_request;
 	      subheader = Id_and_seq (0xff, 0x4341)}) in
-  let echo_request = Marshal.make_cstruct req ~payload:Cstruct.(create 0) in
+  let echo_request = Marshal.make_bytes req ~payload:Bytes.(create 0) in
   let check buf =
-    Unmarshal.of_cstruct buf >>=? fun (message, _) ->
+    Unmarshal.of_bytes buf >>=? fun (message, _) ->
     match message.ty with
     | Icmpv4_wire.Echo_reply ->
       Alcotest.fail "received an ICMP echo reply even though we shouldn't have"
@@ -154,12 +154,12 @@ let echo_silent () =
 let write_errors () =
   let decompose buf =
     let open Ethernet.Packet in
-    let* ethernet_header, ethernet_payload = of_cstruct buf in
+    let* ethernet_header, ethernet_payload = of_bytes buf in
     match ethernet_header.ethertype with
     | `IPv6 | `ARP -> Error "not an ipv4 packet"
     | `IPv4 ->
       let* ipv4_header, ipv4_payload =
-        Ipv4_packet.Unmarshal.of_cstruct ethernet_payload
+        Ipv4_packet.Unmarshal.of_bytes ethernet_payload
       in
       Ok { ethernet_header; ethernet_payload; ipv4_header; ipv4_payload }
   in
@@ -174,9 +174,9 @@ let write_errors () =
             code = Icmpv4_wire.(unreachable_reason_to_int Would_fragment);
             subheader = Next_hop_mtu 576;
           }) in
-        let header = Icmpv4_packet.Marshal.make_cstruct reply
+        let header = Icmpv4_packet.Marshal.make_bytes reply
             ~payload:decomposed.ethernet_payload in
-        let header_and_payload = Cstruct.concat ([header ; decomposed.ethernet_payload]) in
+        let header_and_payload = Bytes.concat Bytes.empty ([header ; decomposed.ethernet_payload]) in
         let open Ipv4_packet in
         Icmp.write stack.icmp ~dst:decomposed.ipv4_header.src header_and_payload >|= Result.get_ok
     in
@@ -185,14 +185,14 @@ let write_errors () =
   let check_packet buf : unit Lwt.t =
     let aux buf =
       let open Icmpv4_packet in
-      let* icmp, icmp_payload = Unmarshal.of_cstruct buf in
+      let* icmp, icmp_payload = Unmarshal.of_bytes buf in
       Alcotest.check Alcotest.int "ICMP message type" 0x03 (Icmpv4_wire.ty_to_int icmp.ty);
       Alcotest.check Alcotest.int "ICMP message code" 0x04 icmp.code;
-      match Cstruct.length icmp_payload with
+      match Bytes.length icmp_payload with
       | 0 -> Alcotest.fail "Error message should've had a payload"
       | _n ->
         (* TODO: packet should have an IP header in it *)
-        Alcotest.(check int) "Payload first byte" 0x45 (Cstruct.get_uint8 icmp_payload 0);
+        Alcotest.(check int) "Payload first byte" 0x45 (Bytes.get_uint8 icmp_payload 0);
         Ok ()
     in
     match aux buf with
@@ -200,7 +200,7 @@ let write_errors () =
     | Ok () -> Lwt.return_unit
   in
   let check_rejection stack dst =
-    let payload = Cstruct.of_string "!@#$" in
+    let payload = Bytes.of_string "!@#$" in
     Lwt.pick [
       icmp_listen stack (fun ~src:_ ~dst:_ buf -> check_packet buf >>= fun () ->
                           V.disconnect stack.netif);

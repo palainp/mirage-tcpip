@@ -20,24 +20,24 @@ let disconnect _ =
 
 let read fd =
   let buflen = 65536 in
-  let buf = Cstruct.create buflen in
+  let buf = Bytes.create buflen in
   Lwt.catch (fun () ->
-      Lwt_cstruct.read fd buf
+      Lwt_bytes.read fd buf
       >>= function
       | 0 -> return (Ok `Eof)
       | n when n = buflen -> return (Ok (`Data buf))
-      | n -> return @@ Ok (`Data (Cstruct.sub buf 0 n))
+      | n -> return @@ Ok (`Data (Bytes.sub buf 0 n))
     )
     (fun exn -> return (Error (`Exn exn)))
 
 let rec write fd buf =
   Lwt.catch
     (fun () ->
-      Lwt_cstruct.write fd buf
+      Lwt_bytes.write fd buf
       >>= function
-      | n when n = Cstruct.length buf -> return @@ Ok ()
+      | n when n = Bytes.length buf -> return @@ Ok ()
       | 0 -> return @@ Error `Closed
-      | n -> write fd (Cstruct.sub buf n (Cstruct.length buf - n))
+      | n -> write fd (Bytes.sub buf n (Bytes.length buf - n))
     ) (function
       | Unix.Unix_error(Unix.EPIPE, _, _) -> return @@ Error `Closed
       | e -> return (Error (`Exn e)))

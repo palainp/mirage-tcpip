@@ -2,7 +2,7 @@ include Icmpv4.S
 
 val connect : unit -> t Lwt.t
 
-val listen : t -> ipaddr -> (Cstruct.t -> unit Lwt.t) -> unit Lwt.t
+val listen : t -> ipaddr -> (Bytes.t -> unit Lwt.t) -> unit Lwt.t
 (** [listen t addr fn] attempts to create an unprivileged listener on IP address [addr].
 
     When a packet is received, the callback [fn] will be called in a fresh background

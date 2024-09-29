@@ -41,11 +41,11 @@ let blind_rst_on_syn_scenario =
         let id = reply_id_from ~src ~dst data in
         (* This -blind- reset must be ignored because of invalid ack. *)
         WIRE.xmit ~ip id ~rst:true ~rx_ack:(ack_from_past data 1)
-          ~seq:(Sequence.of_int32 0l) ~window ~options (Cstruct.create 0)
+          ~seq:(Sequence.of_int32 0l) ~window ~options (Bytes.empty)
         >|= Result.get_ok >>= fun () ->
         (* The syn-ack must be received and connection established *)
         WIRE.xmit ~ip id ~syn:true ~rx_ack:(ack data) ~seq:(Sequence.of_int32 0l) ~window
-          ~options (Cstruct.create 0)
+          ~options (Bytes.empty)
           >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_ACK)
       ) else
@@ -68,7 +68,7 @@ let connection_refused_scenario =
         let id = reply_id_from ~src ~dst data in
         (* refused *)
         WIRE.xmit ~ip id ~rst:true ~rx_ack:(ack data) ~seq:(Sequence.of_int32 0l) ~window
-          ~options (Cstruct.create 0)
+          ~options (Bytes.empty)
           >|= Result.get_ok >>= fun () ->
         Lwt.return Fsm_done
       ) else
@@ -88,7 +88,7 @@ let blind_rst_on_established_scenario =
       if syn then (
         let id = reply_id_from ~src ~dst data in
         WIRE.xmit ~ip id ~syn:true ~rx_ack:(ack data) ~seq:(Sequence.of_int32 0l) ~window
-          ~options (Cstruct.create 0)
+          ~options (Bytes.empty)
           >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_ACK)
       ) else
@@ -99,7 +99,7 @@ let blind_rst_on_established_scenario =
          * Must trigger a challenge ack and not tear down the connection *)
         let id = reply_id_from ~src ~dst data in
         WIRE.xmit ~ip id ~rst:true ~rx_ack:None ~seq:(Sequence.of_int32 10l)
-          ~window ~options (Cstruct.create 0)
+          ~window ~options (Bytes.empty)
           >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_CHALLENGE)
       ) else
@@ -120,7 +120,7 @@ let rst_on_established_scenario =
         let id = reply_id_from ~src ~dst data in
         WIRE.xmit ~ip id ~syn:true ~rx_ack:(ack data)
           ~seq:(Sequence.of_int32 0l) ~window
-          ~options (Cstruct.create 0)
+          ~options (Bytes.empty)
           >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_ACK)
       ) else
@@ -130,7 +130,7 @@ let rst_on_established_scenario =
         let id = reply_id_from ~src ~dst data in
         (* This reset is acceptable and exactly in sequence. Must trigger a reset on the other end *)
         WIRE.xmit ~ip id ~rst:true ~rx_ack:None ~seq:(Sequence.of_int32 1l)
-          ~window ~options (Cstruct.create 0)
+          ~window ~options (Bytes.empty)
           >|= Result.get_ok >>= fun () ->
         Lwt.return Fsm_done
       ) else
@@ -156,7 +156,7 @@ let blind_syn_on_established_scenario =
         let id = reply_id_from ~src ~dst data in
         WIRE.xmit ~ip id ~syn:true ~rx_ack:(ack data)
           ~seq:(Sequence.of_int32 0l) ~window
-          ~options (Cstruct.create 0)
+          ~options (Bytes.empty)
           >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_ACK)
       ) else
@@ -168,7 +168,7 @@ let blind_syn_on_established_scenario =
         (* This -blind- syn should trigger a challenge ack and not
            tear down the connection *)
         WIRE.xmit ~ip id ~syn:true ~rx_ack:None ~seq:(Sequence.of_int32 10l)
-          ~window ~options (Cstruct.create 0)
+          ~window ~options (Bytes.empty)
           >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_CHALLENGE)
       ) else
@@ -181,7 +181,7 @@ let blind_syn_on_established_scenario =
   (`WAIT_FOR_SYN, fsm), sut_connects_and_remains_connected
 
 let blind_data_injection_scenario =
-  let page = Cstruct.create 512 in
+  let page = Bytes.create 512 in
   let fsm ip state ~src ~dst data =
     match state with
     | `WAIT_FOR_SYN ->
@@ -190,7 +190,7 @@ let blind_data_injection_scenario =
         let id = reply_id_from ~src ~dst data in
         WIRE.xmit ~ip id ~syn:true ~rx_ack:(ack data)
           ~seq:(Sequence.of_int32 1000000l) ~window
-          ~options (Cstruct.create 0)
+          ~options (Bytes.empty)
           >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_ACK)
       ) else
@@ -217,7 +217,7 @@ let blind_data_injection_scenario =
 
 let data_repeated_ack_scenario =
   (* This is the just data transmission with ack in the past but within the acceptable window *)
-  let page = Cstruct.create 512 in
+  let page = Bytes.create 512 in
   let fsm ip state ~src ~dst data =
     match state with
     | `WAIT_FOR_SYN ->
@@ -226,7 +226,7 @@ let data_repeated_ack_scenario =
         let id = reply_id_from ~src ~dst data in
         WIRE.xmit ~ip id ~syn:true ~rx_ack:(ack data)
           ~seq:(Sequence.of_int32 1000000l) ~window
-          ~options (Cstruct.create 0)
+          ~options (Bytes.empty)
           >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_ACK)
       ) else
@@ -243,7 +243,7 @@ let data_repeated_ack_scenario =
       ) else
         Lwt.return (Fsm_error "Expected final ack of three step dance")
     | `WAIT_FOR_DATA_ACK ->
-      if (Tcp_wire.get_ack data) && (Tcp_wire.get_ack_number data = Int32.(add 1000001l (of_int (Cstruct.length page))))  then
+      if (Tcp_wire.get_ack data) && (Tcp_wire.get_ack_number data = Int32.(add 1000001l (of_int (Bytes.length page))))  then
         Lwt.return Fsm_done
       else
         Lwt.return (Fsm_error "Ack for data expected") in

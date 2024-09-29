@@ -18,7 +18,7 @@ module type S = sig
   (** Disconnect from the UDP layer. While this might take some time to
       complete, it can never result in an error. *)
 
-  type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
+  type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Bytes.t -> unit Lwt.t
   (** The type for callback functions that adds the UDP metadata for
       [src] and [dst] IP addresses, the [src_port] of the
       connection and the [buffer] payload of the datagram. *)
@@ -32,12 +32,12 @@ module type S = sig
   val unlisten : t -> port:int -> unit
   (** [unlisten t ~port] stops any listeners on [port]. *)
 
-  val input: t -> src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
+  val input: t -> src:ipaddr -> dst:ipaddr -> Bytes.t -> unit Lwt.t
   (** [input t] demultiplexes incoming datagrams based on
       their destination port. *)
 
   val write: ?src:ipaddr -> ?src_port:int -> ?ttl:int -> dst:ipaddr ->
-    dst_port:int -> t -> Cstruct.t -> (unit, error) result Lwt.t
+    dst_port:int -> t -> Bytes.t -> (unit, error) result Lwt.t
   (** [write ~src ~src_port ~ttl ~dst ~dst_port udp data] is a task
       that writes [data] from an optional [src] and [src_port] to a [dst]
       and [dst_port] IP address pair. An optional time-to-live ([ttl]) is passed

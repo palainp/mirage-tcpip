@@ -72,9 +72,9 @@ module Trailing_bytes : Backend = struct
   (* Just adds trailing bytes, doesn't store anything in them *)
   let add_random_bytes src =
     let bytes_to_add = Random.int max_bytes_to_add in
-    let len = Cstruct.length src in
-    let dst = Cstruct.create (len + bytes_to_add) in
-    Cstruct.blit src 0 dst 0 len;
+    let len = Bytes.length src in
+    let dst = Bytes.create (len + bytes_to_add) in
+    Bytes.blit src 0 dst 0 len;
     dst
 
   let set_listen_fn t id fn =

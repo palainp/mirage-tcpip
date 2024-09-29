@@ -27,7 +27,7 @@ module Make (N : Mirage_net.S)
             (T : Mirage_time.S)
             (C : Mirage_clock.MCLOCK) = struct
   type ipaddr   = Ipaddr.V6.t
-  type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
+  type callback = src:ipaddr -> dst:ipaddr -> Bytes.t -> unit Lwt.t
 
   let pp_ipaddr = Ipaddr.V6.pp
 
@@ -70,16 +70,17 @@ module Make (N : Mirage_net.S)
   let write t ?fragment:_ ?ttl:_ ?src dst proto ?(size = 0) headerf bufs =
     let now = C.elapsed_ns () in
     (* TODO fragmentation! *)
-    let payload = Cstruct.concat bufs in
-    let size' = size + Cstruct.length payload in
+    let payload = Bytes.concat Bytes.empty bufs in
+    let size' = size + Bytes.length payload in
     let fillf _ip6hdr buf =
       let h_len = headerf buf in
       if h_len > size then begin
         Log.err (fun m -> m "provided headerf exceeds size") ;
         invalid_arg "headerf exceeds size"
       end ;
-      Cstruct.blit payload 0 buf h_len (Cstruct.length payload);
-      h_len + Cstruct.length payload
+      let len = Bytes.length payload in
+      Bytes.blit payload 0 buf h_len len;
+      h_len + len
     in
     let ctx, outs = Ndpv6.send ~now t.ctx ?src dst proto size' fillf in
     t.ctx <- ctx;
@@ -122,15 +123,15 @@ module Make (N : Mirage_net.S)
     Ndpv6.configured_ips t.ctx
 
   let pseudoheader t ?src:source dst proto len =
-    let ph = Cstruct.create (16 + 16 + 8) in
+    let ph = Bytes.create (16 + 16 + 8) in
     let src = match source with None -> src t ~dst | Some x -> x in
     Ipv6_wire.set_ip ph 0 src;
     Ipv6_wire.set_ip ph 16 dst;
-    Cstruct.BE.set_uint32 ph 32 (Int32.of_int len);
-    Cstruct.set_uint8 ph 36 0;
-    Cstruct.set_uint8 ph 37 0;
-    Cstruct.set_uint8 ph 38 0;
-    Cstruct.set_uint8 ph 39 (Ipv6_wire.protocol_to_int proto);
+    Bytes.set_uint32_be ph 32 (Int32.of_int len);
+    Bytes.set_uint8 ph 36 0;
+    Bytes.set_uint8 ph 37 0;
+    Bytes.set_uint8 ph 38 0;
+    Bytes.set_uint8 ph 39 (Ipv6_wire.protocol_to_int proto);
     ph
 
   let connect ?(no_init = false) ?(handle_ra = true) ?cidr ?gateway netif ethif =

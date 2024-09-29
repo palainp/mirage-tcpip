@@ -26,8 +26,6 @@ depends: [
   "dune" {>= "2.7.0"}
   "bisect_ppx" {dev & >= "2.5.0"}
   "ocaml" {>= "4.08.0"}
-  "cstruct" {>= "6.0.0"}
-  "cstruct-lwt"
   "mirage-net" {>= "3.0.0"}
   "mirage-clock" {>= "3.0.0"}
   "mirage-crypto-rng-mirage" {>= "1.0.0"}

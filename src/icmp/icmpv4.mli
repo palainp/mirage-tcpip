@@ -20,11 +20,11 @@ module type S = sig
   val pp_error: error Fmt.t
   (** [pp_error] is the pretty-printer for errors. *)
 
-  val input : t -> src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
+  val input : t -> src:ipaddr -> dst:ipaddr -> Bytes.t -> unit Lwt.t
   (** [input t src dst buffer] reacts to the ICMP message in
       [buffer]. *)
 
-  val write : t -> ?src:ipaddr -> dst:ipaddr -> ?ttl:int -> Cstruct.t -> (unit, error) result Lwt.t
+  val write : t -> ?src:ipaddr -> dst:ipaddr -> ?ttl:int -> Bytes.t -> (unit, error) result Lwt.t
   (** [write t ~src ~dst ~ttl buffer] sends the ICMP message in [buffer] to [dst]
       over IP. Passes the time-to-live ([ttl]) to the IP stack if given. *)
 end

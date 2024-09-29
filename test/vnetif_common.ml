@@ -39,7 +39,7 @@ sig
     ?gateway:Ipaddr.V4.t -> ?cidr6:Ipaddr.V6.Prefix.t ->
     ?gateway6:Ipaddr.V6.t -> backend -> Stack.t Lwt.t
 
-  val create_backend_listener : backend -> (Cstruct.t -> unit Lwt.t) -> int
+  val create_backend_listener : backend -> (Bytes.t -> unit Lwt.t) -> int
 
   (** Disable a listener function *)
   val disable_backend_listener : backend -> int -> unit Lwt.t
@@ -97,7 +97,7 @@ end
     B.unregister_and_flush backend id
 
   let create_pcap_recorder backend channel =
-    let header_buf = Cstruct.create Pcap.sizeof_pcap_header in
+    let header_buf = Bytes.create Pcap.sizeof_pcap_header in
     Pcap.LE.set_pcap_header_magic_number header_buf Pcap.magic_number;
     Pcap.LE.set_pcap_header_network header_buf Pcap.Network.(to_int32 Ethernet);
     Pcap.LE.set_pcap_header_sigfigs header_buf 0l;
@@ -105,17 +105,17 @@ end
     Pcap.LE.set_pcap_header_thiszone header_buf 0l;
     Pcap.LE.set_pcap_header_version_major header_buf Pcap.major_version;
     Pcap.LE.set_pcap_header_version_minor header_buf Pcap.minor_version;
-    Lwt_io.write channel (Cstruct.to_string header_buf) >>= fun () ->
+    Lwt_io.write channel (Bytes.to_string header_buf) >>= fun () ->
     let pcap_record channel buffer =
-      let pcap_buf = Cstruct.create Pcap.sizeof_pcap_packet in
+      let pcap_buf = Bytes.create Pcap.sizeof_pcap_packet in
       let time = Unix.gettimeofday () in
-      Pcap.LE.set_pcap_packet_incl_len pcap_buf (Int32.of_int (Cstruct.length buffer));
-      Pcap.LE.set_pcap_packet_orig_len pcap_buf (Int32.of_int (Cstruct.length buffer));
+      Pcap.LE.set_pcap_packet_incl_len pcap_buf (Int32.of_int (Bytes.length buffer));
+      Pcap.LE.set_pcap_packet_orig_len pcap_buf (Int32.of_int (Bytes.length buffer));
       Pcap.LE.set_pcap_packet_ts_sec pcap_buf (Int32.of_float time);
       let frac = (time -. (float_of_int (truncate time))) *. 1000000.0 in
       Pcap.LE.set_pcap_packet_ts_usec pcap_buf (Int32.of_float frac);
       (try
-          Lwt_io.write channel ((Cstruct.to_string pcap_buf) ^ (Cstruct.to_string buffer))
+          Lwt_io.write channel ((Bytes.to_string pcap_buf) ^ (Bytes.to_string buffer))
       with
         Lwt_io.Channel_closed msg -> Printf.printf "Warning: Pcap output channel already closed: %s.\n" msg; Lwt.return_unit
       )

@@ -4,7 +4,6 @@
  (modules tcpip_checksum)
  (instrumentation
   (backend bisect_ppx))
- (libraries cstruct)
  (foreign_stubs
   (language c)
   (names checksum_stubs)

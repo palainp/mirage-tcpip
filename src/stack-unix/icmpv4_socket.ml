@@ -36,20 +36,16 @@ module Log = (val Logs.src_log src : Logs.LOG)
 let sendto' fd buf flags dst =
   if is_win32 then begin
      (* Lwt on Win32 doesn't support Lwt_bytes.sendto *)
-     let bytes = Bytes.make (Cstruct.length buf) '\000' in
-     Cstruct.blit_to_bytes buf 0 bytes 0 (Cstruct.length buf);
-     Lwt_unix.sendto fd bytes 0 (Bytes.length bytes) flags dst
-  end else Lwt_cstruct.sendto fd buf flags dst
+     Lwt_unix.sendto fd bytes 0 (Bytes.length buf) flags dst
+  end else Lwt_bytes.sendto fd buf flags dst
 
 let recvfrom' fd buf flags =
   if is_win32 then begin
     (* Lwt on Win32 doesn't support Lwt_bytes.recvfrom *)
-    let bytes = Bytes.make (Cstruct.length buf) '\000' in
-    Lwt_unix.recvfrom fd bytes 0 (Bytes.length bytes) flags
+    Lwt_unix.recvfrom fd bytes 0 (Bytes.length buf) flags
     >>= fun (n, sockaddr) ->
-    Cstruct.blit_from_bytes bytes 0 buf 0 n;
     Lwt.return (n, sockaddr)
-  end else Lwt_cstruct.recvfrom fd buf flags
+  end else Lwt_bytes.recvfrom fd buf flags
 
 let write _t ?src:_ ~dst ?ttl:_ttl buf =
   let open Lwt_unix in
@@ -61,14 +57,14 @@ let write _t ?src:_ ~dst ?ttl:_ttl buf =
   let sockaddr = ADDR_INET (in_addr, port) in
   Lwt.catch (fun () ->
     sendto' fd buf flags sockaddr >>= fun sent ->
-      if (sent <> (Cstruct.length buf)) then
-        Log.debug (fun f -> f "short write: %d received vs %d expected" sent (Cstruct.length buf));
+      if (sent <> (Bytes.length buf)) then
+        Log.debug (fun f -> f "short write: %d received vs %d expected" sent (Bytes.length buf));
     Lwt_unix.close fd |> Lwt_result.ok
   ) (fun exn -> Lwt.return @@ Error (`Ip (Printexc.to_string exn)))
 
 let input t ~src ~dst:_ buf =
   (* some default logic -- respond to echo requests with echo replies *)
-  match Icmpv4_packet.Unmarshal.of_cstruct buf with
+  match Icmpv4_packet.Unmarshal.of_bytes buf with
   | Error s ->
     Log.debug (fun f -> f "Error decomposing an ICMP packet: %s" s);
     Lwt.return_unit
@@ -83,7 +79,7 @@ let input t ~src ~dst:_ buf =
       (* TODO: if `listen` were allowed to report problems,
        * it would be sensible not to discard the value returned here,
        * but as it is we can only return () *)
-      write t ~dst:src (Marshal.make_cstruct response ~payload) >>= fun _ -> Lwt.return_unit
+      write t ~dst:src (Marshal.make_bytes response ~payload) >>= fun _ -> Lwt.return_unit
     | _, _ -> Lwt.return_unit
 
 let listen t addr fn =
@@ -93,16 +89,16 @@ let listen t addr fn =
   Lwt_unix.bind fd sa >>= fun () ->
   Log.debug (fun f -> f "Bound ICMP file descriptor to %a" pp_sockaddr sa);
   let rec loop () =
-    let receive_buffer = Cstruct.create 4096 in
+    let receive_buffer = Bytes.create 4096 in
     recvfrom' fd receive_buffer [] >>= fun (len, _sockaddr) ->
     (* trim the buffer to the amount of data actually received *)
-    let receive_buffer = Cstruct.sub receive_buffer 0 len in
+    let receive_buffer = Bytes.sub receive_buffer 0 len in
     (* On macOS the IP length field is set to a very large value (16384) which
        probably reflects some kernel datastructure size rather than the real
        on-the-wire size. This confuses our IPv4 parser so we correct the size
        here. *)
     let len = Ipv4_wire.get_len receive_buffer in
-    Ipv4_wire.set_len receive_buffer (min len (Cstruct.length receive_buffer));
+    Ipv4_wire.set_len receive_buffer (min len (Bytes.length receive_buffer));
     Lwt.async (fun () -> fn receive_buffer);
     loop ()
   in

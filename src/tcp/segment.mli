@@ -26,7 +26,7 @@
 
 module Rx (T:Mirage_time.S)(ACK:Ack.M) : sig
 
-  type segment = { header: Tcp_packet.t; payload: Cstruct.t }
+  type segment = { header: Tcp_packet.t; payload: Bytes.t }
   (** Individual received TCP segment *)
 
   val pp_segment: Format.formatter -> segment -> unit
@@ -37,7 +37,7 @@ module Rx (T:Mirage_time.S)(ACK:Ack.M) : sig
   val pp: Format.formatter -> t -> unit
 
   val create:
-    rx_data:(Cstruct.t list option * Sequence.t option) Lwt_mvar.t ->
+    rx_data:(Bytes.t list option * Sequence.t option) Lwt_mvar.t ->
     ack:ACK.t ->
     wnd:Window.t ->
     state:State.t ->
@@ -60,7 +60,7 @@ type tx_flags = No_flags | Syn | Fin | Rst | Psh
 module Tx (Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) : sig
 
   type ('a, 'b) xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
-    seq:Sequence.t -> Cstruct.t -> ('a, 'b) result Lwt.t
+    seq:Sequence.t -> Bytes.t -> ('a, 'b) result Lwt.t
 
   type t
   (** Queue of pre-transmission segments *)
@@ -72,7 +72,7 @@ module Tx (Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) : sig
     tx_wnd_update:int Lwt_mvar.t -> t * unit Lwt.t
 
   val output:
-    ?flags:tx_flags -> ?options:Options.t list -> t -> Cstruct.t -> unit Lwt.t
+    ?flags:tx_flags -> ?options:Options.t list -> t -> Bytes.t -> unit Lwt.t
   (** Queue a segment for transmission. May block if:
 
       {ul

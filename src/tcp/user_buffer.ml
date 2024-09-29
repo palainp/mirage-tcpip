@@ -30,10 +30,10 @@ module Rx = struct
     stops taking data the window closes so the other side stops sending *)
 
   type t = {
-    q: Cstruct.t option Lwt_dllist.t;
+    q: Bytes.t option Lwt_dllist.t;
     wnd: Window.t;
     writers: unit Lwt.u Lwt_dllist.t;
-    readers: Cstruct.t option Lwt.u Lwt_dllist.t;
+    readers: Bytes.t option Lwt.u Lwt_dllist.t;
     mutable watcher: int32 Lwt_mvar.t option;
     mutable max_size: int32;
     mutable cur_size: int32;
@@ -57,7 +57,7 @@ module Rx = struct
   let seglen s =
     match s with
     | None -> 0
-    | Some b -> Cstruct.length b
+    | Some b -> Bytes.length b
 
   let remove_all t =
     let rec rm = function
@@ -124,7 +124,7 @@ module Tx(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) = struct
     wnd: Window.t;
     writers: unit Lwt.u Lwt_dllist.t;
     txq: TXS.t;
-    buffer: Cstruct.t Lwt_dllist.t;
+    buffer: Bytes.t Lwt_dllist.t;
     max_size: int32;
     mutable bufbytes: int32;
   }
@@ -136,13 +136,13 @@ module Tx(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) = struct
     { wnd; writers; txq; buffer; max_size; bufbytes }
 
   let len data =
-    Int32.of_int (Cstruct.length data)
+    Int32.of_int (Bytes.length data)
 
   let lenv datav =
     match datav with
     |[] -> 0l
-    |[d] -> Int32.of_int (Cstruct.length d)
-    |ds -> Int32.of_int (List.fold_left (fun a b -> Cstruct.length b + a) 0 ds)
+    |[d] -> Int32.of_int (Bytes.length d)
+    |ds -> Int32.of_int (List.fold_left (fun a b -> Bytes.length b + a) 0 ds)
 
   (* Check how many bytes are available to write to output buffer *)
   let available t =
@@ -168,7 +168,7 @@ module Tx(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) = struct
       wait_for t sz
     end
 
-  let compactbufs bl = Cstruct.concat bl
+  let compactbufs bl = Bytes.concat Bytes.empty bl
 
   (* Wait until the user buffer is flushed *)
   let rec wait_for_flushed t =
@@ -208,7 +208,10 @@ module Tx(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) = struct
             lwt_sequence_add_l s t.buffer;
             None
           |_ -> (* split buffer into a partial write *)
-            let to_send,remaining = Cstruct.split s (Int32.to_int avail_len) in
+            let len = Bytes.length s in
+            let idx = (Int32.to_int avail_len) in
+            let to_send = Bytes.sub s 0 idx in 
+            let remaining = Bytes.split s idx (len-idx) in
             (* queue remaining view *)
             lwt_sequence_add_l remaining t.buffer;
             t.bufbytes <- Int32.sub t.bufbytes avail_len;
@@ -247,10 +250,13 @@ module Tx(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) = struct
           |_ -> transmit acc
         end
       |hd::tl ->
-        let curlen = Cstruct.lenv acc in
-        let tlen = Cstruct.length hd + curlen in
+        let curlen = List.fold_left (fun n x -> n + Bytes.length x) 0 acc in
+        let tlen = Bytes.length hd + curlen in
         if tlen > mss then begin
-          let a,b = Cstruct.split hd (mss - curlen) in
+          let len = Bytes.length hd in
+          let idx = mss - curlen in
+          let a = Bytes.sub hd 0 idx in
+          let b = Bytes.sub hd idx (len-idx) in
           transmit (a::acc) >>= fun () ->
           chunk (b::tl) []
         end else

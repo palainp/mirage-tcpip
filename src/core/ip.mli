@@ -41,7 +41,7 @@ module type S = sig
   (** Disconnect from the IP layer. While this might take some time to
       complete, it can never result in an error. *)
 
-  type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
+  type callback = src:ipaddr -> dst:ipaddr -> Bytes.t -> unit Lwt.t
   (** An input continuation used by the parsing functions to pass on
       an input packet down the stack.
 
@@ -53,15 +53,15 @@ module type S = sig
   val input:
     t ->
     tcp:callback -> udp:callback -> default:(proto:int -> callback) ->
-    Cstruct.t -> unit Lwt.t
+    Bytes.t -> unit Lwt.t
   (** [input ~tcp ~udp ~default ip buf] demultiplexes an incoming
       [buffer] that contains an IP frame. It examines the protocol
       header and passes the result onto either the [tcp] or [udp]
       function, or the [default] function for unknown IP protocols. *)
 
   val write: t -> ?fragment:bool -> ?ttl:int ->
-    ?src:ipaddr -> ipaddr -> proto -> ?size:int -> (Cstruct.t -> int) ->
-    Cstruct.t list -> (unit, error) result Lwt.t
+    ?src:ipaddr -> ipaddr -> proto -> ?size:int -> (Bytes.t -> int) ->
+    Bytes.t list -> (unit, error) result Lwt.t
   (** [write t ~fragment ~ttl ~src dst proto ~size headerf payload] allocates a
      buffer, writes the IP header, and calls the headerf function. This may
      write to the provided buffer of [size] (default 0). If [size + ip header]
@@ -72,7 +72,7 @@ module type S = sig
      payload and header would exceed the maximum transfer unit, an error is
      returned. *)
 
-  val pseudoheader : t -> ?src:ipaddr -> ipaddr -> proto -> int -> Cstruct.t
+  val pseudoheader : t -> ?src:ipaddr -> ipaddr -> proto -> int -> Bytes.t
   (** [pseudoheader t ~src dst proto len] gives a pseudoheader suitable for use in
       TCP or UDP checksum calculation based on [t]. *)
 
