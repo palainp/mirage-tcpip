@@ -34,5 +34,6 @@ module type S = sig
   val get_ip: t -> ipaddr list
   [@@ocaml.deprecated "this function will be removed soon, use [configured_ips] instead."]
   val configured_ips: t -> prefix list
+  val default_route : t -> ipaddr option
   val mtu: t -> dst:ipaddr -> int
 end

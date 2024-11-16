@@ -92,6 +92,9 @@ module type S = sig
       one prefix can be set at a time, so the list will always be of
       length 1, e.g. [[10.0.0.2/24]]. *)
 
+  val default_route : t -> ipaddr option
+  (** Returns the [Some ipaddr] of the gateway if any or [None] *)
+
   val mtu: t -> dst:ipaddr -> int
   (** [mtu ~dst ip] is the Maximum Transmission Unit of the [ip] i.e. the
       maximum size of the payload, not including the IP header. *)

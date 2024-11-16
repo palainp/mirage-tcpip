@@ -176,6 +176,8 @@ module Make (R: Mirage_crypto_rng_mirage.S) (C: Mirage_clock.MCLOCK) (Ethernet: 
 
   let configured_ips t = [t.cidr]
 
+  let default_route t = t.gateway
+
   let pseudoheader t ?src dst proto len =
     let src = match src with None -> Ipaddr.V4.Prefix.address t.cidr | Some x -> x in
     Ipv4_packet.Marshal.pseudoheader ~src ~dst ~proto len

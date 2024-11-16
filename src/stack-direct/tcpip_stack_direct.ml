@@ -136,6 +136,8 @@ module IPV4V6
     List.map (fun ip -> Ipaddr.V6 ip) (Ipv6.get_ip t.ipv6)
   [@@@alert "+deprecated"]
 
+  let default_route _ = None
+
   let configured_ips t =
     List.map (fun cidr -> Ipaddr.V4 cidr) (Ipv4.configured_ips t.ipv4) @
     List.map (fun cidr -> Ipaddr.V6 cidr) (Ipv6.configured_ips t.ipv6)

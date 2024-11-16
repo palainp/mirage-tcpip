@@ -37,5 +37,6 @@ let write _ ?fragment:_ ?ttl:_ ?src:_ _ _ ?size:_ _ _ =
 
 let get_ip _ = [Ipaddr.V6 Ipaddr.V6.unspecified]
 let configured_ips _ = [Ipaddr.Prefix.of_string_exn "::/0"]
+let default_route _ = None
 let src _ ~dst:_ = raise (Failure "Not implemented")
 let pseudoheader _ ?src:_ _ _ _ = raise (Failure "Not implemented")

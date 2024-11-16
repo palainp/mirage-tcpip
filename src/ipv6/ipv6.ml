@@ -121,6 +121,8 @@ module Make (N : Mirage_net.S)
   let configured_ips t =
     Ndpv6.configured_ips t.ctx
 
+  let default_route _ = None
+
   let pseudoheader t ?src:source dst proto len =
     let ph = Cstruct.create (16 + 16 + 8) in
     let src = match source with None -> src t ~dst | Some x -> x in
